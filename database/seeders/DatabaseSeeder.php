@@ -46,17 +46,15 @@ class DatabaseSeeder extends Seeder
             ]
         ]);
 
-        // 2. Insert Data Kategori Mobil
         DB::table('kategori_mobil')->insert([
             ['nama_kategori' => 'MPV'],
             ['nama_kategori' => 'SUV'],
             ['nama_kategori' => 'Sedan'],
         ]);
 
-        // 3. Insert Data Katalog Mobil
         DB::table('katalog_mobil')->insert([
             [
-                'id_kategori' => 1, // MPV
+                'id_kategori' => 1, 
                 'plat_nomor' => 'B 1234 ABC',
                 'merk_model' => 'Toyota Avanza',
                 'harga_sewa' => 350000.00,
@@ -64,7 +62,7 @@ class DatabaseSeeder extends Seeder
                 'versi' => 0,
             ],
             [
-                'id_kategori' => 2, // SUV
+                'id_kategori' => 2, 
                 'plat_nomor' => 'D 5678 DEF',
                 'merk_model' => 'Honda CR-V',
                 'harga_sewa' => 600000.00,
