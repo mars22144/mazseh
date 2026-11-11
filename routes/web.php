@@ -35,6 +35,9 @@ Route::middleware('guest')->group(function () {
     Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('forgot-password.post');
 });
 
+// cihuy
+// EHEM
+
 // Authenticated Routes
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
