@@ -151,4 +151,26 @@ class AuthSecurityTest extends TestCase
         $response->assertSessionHas('success');
         $this->assertNotEquals($oldToken, session()->token());
     }
+
+    /**
+     * Memastikan registrasi berhasil menyimpan akun dan mengarahkan ke halaman login tanpa otomatis login.
+     */
+    public function test_registrasi_mengarahkan_ke_halaman_login_tanpa_otomatis_login(): void
+    {
+        $response = $this->post('/register', [
+            'name' => 'Pengguna Baru',
+            'email' => '  Baru_User@Mazseh.Test  ',
+            'phone' => '081234567895',
+            'password' => 'Rahasia123',
+            'password_confirmation' => 'Rahasia123',
+        ]);
+
+        $this->assertGuest();
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHas('success');
+        $this->assertDatabaseHas('users', [
+            'email' => 'baru_user@mazseh.test',
+            'name' => 'Pengguna Baru',
+        ]);
+    }
 }

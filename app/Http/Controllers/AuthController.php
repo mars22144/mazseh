@@ -69,11 +69,8 @@ class AuthController extends Controller
             'role' => 'pelanggan',
         ]);
 
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        return redirect()->route('home')
-            ->with('success', 'Akun berhasil dibuat! Selamat datang di MAZSEH.');
+        return redirect()->route('login')
+            ->with('success', 'Akun berhasil dibuat! Silakan masuk dengan email dan kata sandi Anda.');
     }
 
     /**
