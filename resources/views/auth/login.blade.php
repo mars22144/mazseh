@@ -23,15 +23,19 @@
                     @csrf
                     <div class="field">
                         <label for="email">Alamat email *</label>
-                        <input id="email" name="email" type="email" value="{{ old('email') }}" required autocomplete="email" placeholder="nama@email.com">
+                        <input id="email" name="email" type="email" value="{{ old('email') }}" required autocomplete="email" placeholder="nama@email.com" maxlength="255">
                     </div>
 
                     <div class="field">
                         <label for="password">Kata sandi *</label>
-                        <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••">
+                        <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••" minlength="6" maxlength="255">
                     </div>
 
-                    <div class="od-row" style="justify-content:flex-end; margin-bottom:16px;">
+                    <div class="od-row" style="justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-size:0.9rem; margin:0; user-select:none;">
+                            <input type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
+                            <span>Ingat saya</span>
+                        </label>
                         <a href="{{ route('forgot-password') }}" class="text-link" style="min-height:auto;">Lupa kata sandi?</a>
                     </div>
 
