@@ -28,11 +28,17 @@ Route::post('/ai-chat', [AiChatController::class, 'sendMessage'])->name('ai-chat
 // Guest Authentication Routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AuthController::class, 'login'])->name('login.post');
+    Route::post('/login', [AuthController::class, 'login'])
+        ->middleware('throttle:login-ip')
+        ->name('login.post');
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
-    Route::post('/register', [AuthController::class, 'register'])->name('register.post');
+    Route::post('/register', [AuthController::class, 'register'])
+        ->middleware('throttle:register')
+        ->name('register.post');
     Route::get('/forgot-password', [AuthController::class, 'showForgotPassword'])->name('forgot-password');
-    Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])->name('forgot-password.post');
+    Route::post('/forgot-password', [AuthController::class, 'sendResetLink'])
+        ->middleware('throttle:forgot-password')
+        ->name('forgot-password.post');
 });
 
 // Authenticated Routes

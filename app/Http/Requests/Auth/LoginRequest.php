@@ -15,6 +15,12 @@ use Illuminate\Validation\ValidationException;
 class LoginRequest extends FormRequest
 {
     /**
+     * Dummy Bcrypt hash (cost 12) untuk menjaga waktu verifikasi tetap konstan
+     * ketika email tidak ditemukan (mitigasi timing attack).
+     */
+    private const DUMMY_PASSWORD_HASH = '$2y$12$usesomesillystringfore2uDLvp1Ii2e./U9C8sBjqp8I90dH6hi';
+
+    /**
      * Tentukan apakah pengguna diizinkan membuat request ini.
      */
     public function authorize(): bool
@@ -66,7 +72,8 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * Proses autentikasi kredensial dengan pencegahan SQL Injection, Facade Hash, dan Rate Limiting.
+     * Proses autentikasi kredensial dengan pencegahan SQL Injection, Timing Attack,
+     * Facade Hash (termasuk auto-rehash), dan Rate Limiting.
      *
      * @throws ValidationException
      */
@@ -81,13 +88,23 @@ class LoginRequest extends FormRequest
         // Pencegahan SQL Injection: Gunakan Eloquent Parameter Binding (bukan raw query)
         $user = User::query()->where('email', $email)->first();
 
-        // Gunakan Facade Hash::check secara eksplisit
-        if (! $user || ! Hash::check($password, $user->password)) {
+        // Mitigasi Timing Attack: tetap jalankan Hash::check terhadap dummy hash jika user null
+        $targetHash = $user?->password ?? self::DUMMY_PASSWORD_HASH;
+        $passwordValid = Hash::check($password, $targetHash);
+
+        if (! $user || ! $passwordValid) {
             RateLimiter::hit($this->throttleKey(), 60);
 
             throw ValidationException::withMessages([
                 'email' => 'Alamat email atau kata sandi tidak cocok dengan data kami.',
             ]);
+        }
+
+        // Auto-rehash apabila cost/algoritma hashing di konfigurasi berubah
+        if (Hash::needsRehash($user->password)) {
+            $user->forceFill([
+                'password' => Hash::make($password),
+            ])->save();
         }
 
         RateLimiter::clear($this->throttleKey());
