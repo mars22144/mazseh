@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,23 +24,15 @@ class AuthController extends Controller
     /**
      * Proses autentikasi login pengguna.
      */
-    public function login(Request $request): RedirectResponse
+    public function login(LoginRequest $request): RedirectResponse
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
-        ]);
+        $request->authenticate();
 
-        if (Auth::attempt($credentials, true)) {
-            $request->session()->regenerate();
+        // Cegah Session Fixation dengan meregenerasi ID sesi baru
+        $request->session()->regenerate();
 
-            return redirect()->intended(route('home'))
-                ->with('success', 'Selamat datang kembali, ' . Auth::user()->name . '!');
-        }
-
-        return back()->withErrors([
-            'email' => 'Alamat email atau kata sandi tidak cocok dengan data kami.',
-        ])->onlyInput('email');
+        return redirect()->intended(route('home'))
+            ->with('success', 'Selamat datang kembali, '.Auth::user()->name.'!');
     }
 
     /**
@@ -52,16 +46,11 @@ class AuthController extends Controller
     /**
      * Proses registrasi pengguna baru.
      */
-    public function register(Request $request): RedirectResponse
+    public function register(RegisterRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:80'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'phone' => ['required', 'string', 'max:30'],
-            'password' => ['required', 'string', 'min:6', 'confirmed'],
-        ]);
+        $validated = $request->validated();
 
-        $user = User::create([
+        User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
@@ -69,11 +58,8 @@ class AuthController extends Controller
             'role' => 'pelanggan',
         ]);
 
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        return redirect()->route('home')
-            ->with('success', 'Akun berhasil dibuat! Selamat datang di MAZSEH.');
+        return redirect()->route('login')
+            ->with('success', 'Akun berhasil dibuat! Silakan masuk dengan email dan kata sandi Anda.');
     }
 
     /**
@@ -97,13 +83,16 @@ class AuthController extends Controller
     }
 
     /**
-     * Proses keluar akun (logout).
+     * Proses keluar akun (logout) dengan Session Invalidation penuh.
      */
     public function logout(Request $request): RedirectResponse
     {
-        Auth::logout();
+        Auth::guard('web')->logout();
 
+        // Hapus seluruh data sesi dan batalkan masa berlaku session ID lama
         $request->session()->invalidate();
+
+        // Buat ulang CSRF token baru agar token lama tidak bisa dipakai ulang
         $request->session()->regenerateToken();
 
         return redirect()->route('home')

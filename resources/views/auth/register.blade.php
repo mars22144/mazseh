@@ -28,22 +28,22 @@
 
                     <div class="field">
                         <label for="email">Alamat email *</label>
-                        <input id="email" name="email" type="email" value="{{ old('email') }}" required autocomplete="email" placeholder="nama@email.com">
+                        <input id="email" name="email" type="email" value="{{ old('email') }}" required maxlength="255" autocomplete="email" placeholder="nama@email.com">
                     </div>
 
                     <div class="field">
                         <label for="phone">Nomor telepon / WhatsApp *</label>
-                        <input id="phone" name="phone" type="tel" value="{{ old('phone') }}" required placeholder="08xxxxxxxxxx">
+                        <input id="phone" name="phone" type="tel" value="{{ old('phone') }}" required minlength="8" maxlength="20" placeholder="08xxxxxxxxxx">
                     </div>
 
                     <div class="field">
                         <label for="password">Kata sandi *</label>
-                        <input id="password" name="password" type="password" required minlength="6" placeholder="Minimal 6 karakter">
+                        <input id="password" name="password" type="password" required minlength="8" maxlength="255" placeholder="Minimal 8 karakter (huruf & angka)">
                     </div>
 
                     <div class="field">
                         <label for="password_confirmation">Konfirmasi kata sandi *</label>
-                        <input id="password_confirmation" name="password_confirmation" type="password" required minlength="6" placeholder="Ulangi kata sandi">
+                        <input id="password_confirmation" name="password_confirmation" type="password" required minlength="8" maxlength="255" placeholder="Ulangi kata sandi">
                     </div>
 
                     <label class="check-label">
