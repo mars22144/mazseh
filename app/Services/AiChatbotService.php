@@ -239,6 +239,7 @@ BATASAN KETAT:
 4. Jangan meminta data sensitif (password, OTP, nomor kartu) dan jangan membahas status transaksi pribadi pelanggan (arahkan ke menu "Pesanan Saya" atau WhatsApp Admin jika menanyakan status booking spesifik).
 5. Isi field `recommended_slugs` hanya dengan slug mobil dari daftar di atas yang relevan dengan jawaban Anda.
 6. Set `needs_whatsapp` menjadi `true` jika pengguna meminta dihubungkan dengan admin/CS/WhatsApp/manusia atau menanyakan hal operasional khusus di luar informasi umum.
+7. JIKA pengguna bertanya atau mengajak mengobrol DI LUAR topik rental mobil, armada, harga sewa, layanan MAZSEH, atau customer service (misalnya soal matematika, tugas sekolah, coding, politik, resep, curhat, dll.), JANGAN menjawab pertanyaan tersebut; cukup balas persis dengan kalimat: "Maaf, sebagai asisten MAZSEH saya hanya dapat membantu Anda seputar informasi rental mobil kami." dengan recommended_slugs = [] dan needs_whatsapp = false.
 PROMPT;
     }
 
@@ -433,11 +434,24 @@ PROMPT;
             ];
         }
 
-        // 6. Jawaban default dengan daftar singkat armada yang tersedia
-        $availableSummary = $availableCars->take(5)->pluck('merk_model')->implode(', ');
+        // 6. Sapaan murni atau pertanyaan umum seputar layanan rental MAZSEH
+        $isPureGreeting = preg_match('/^(halo|hai|hi|hello|hey|p|permisi|assalamualaikum|selamat\s+(pagi|siang|sore|malam))[\s!?.]*$/u', $lower) === 1;
+        $isRentalTopic = $this->containsWholeWord($lower, ['mobil', 'unit', 'armada', 'rental', 'sewa', 'mazseh', 'katalog', 'daftar', 'harga', 'tarif', 'biaya', 'budget', 'kursi', 'penumpang', 'matic', 'otomatis', 'manual', 'bensin', 'diesel', 'hybrid', 'promo', 'diskon'])
+            || $this->containsAny($lower, ['rekomendasi', 'rekomendasikan', 'lepas kunci', 'tersedia']);
 
+        if ($isPureGreeting || $isRentalTopic) {
+            $availableSummary = $availableCars->take(5)->pluck('merk_model')->implode(', ');
+
+            return [
+                'reply' => "Halo! MAZSEH menyediakan berbagai unit tersedia seperti {$availableSummary} dengan opsi lepas kunci atau dengan sopir. Silakan sebutkan tipe mobil, jumlah penumpang, atau kisaran budget Anda.",
+                'recommended_slugs' => [],
+                'needs_whatsapp' => false,
+            ];
+        }
+
+        // 7. Penolakan sopan untuk topik di luar rental mobil MAZSEH & customer service
         return [
-            'reply' => "Halo! MAZSEH menyediakan berbagai unit tersedia seperti {$availableSummary} dengan opsi lepas kunci atau dengan sopir. Silakan sebutkan tipe mobil, jumlah penumpang, atau kisaran budget Anda.",
+            'reply' => 'Maaf, sebagai asisten MAZSEH saya hanya dapat membantu Anda seputar informasi rental mobil kami.',
             'recommended_slugs' => [],
             'needs_whatsapp' => false,
         ];
@@ -464,7 +478,7 @@ PROMPT;
             $words = preg_split('/\s+/', strtolower($car->merk_model)) ?: [];
             foreach ($words as $word) {
                 if (strlen($word) >= 4 && ! in_array($word, ['toyota', 'mobil', 'hybrid', 'sport'], true)) {
-                    if (str_contains($lowerMessage, $word)) {
+                    if ($this->containsWholeWord($lowerMessage, [$word])) {
                         return true;
                     }
                 }
@@ -479,19 +493,20 @@ PROMPT;
      */
     protected function extractMaxBudget(string $lowerMessage): ?float
     {
-        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(jt|juta)/', $lowerMessage, $matches)) {
+        if (preg_match('/\b(\d+(?:[.,]\d+)?)\s*(jt|juta)\b/', $lowerMessage, $matches)) {
             $value = (float) str_replace(',', '.', $matches[1]);
 
             return $value * 1000000;
         }
 
-        if (preg_match('/(\d+(?:[.,]\d+)?)\s*(rb|ribu|k)/', $lowerMessage, $matches)) {
+        if (preg_match('/\b(\d+(?:[.,]\d+)?)\s*(rb|ribu|k)\b/', $lowerMessage, $matches)) {
             $value = (float) str_replace(['.', ','], ['', '.'], $matches[1]);
 
             return $value * 1000;
         }
 
-        if (preg_match('/\b(\d{6,7})\b/', str_replace('.', '', $lowerMessage), $matches)) {
+        $hasBudgetCue = $this->containsAny($lowerMessage, ['budget', 'harga', 'tarif', 'sewa', 'mobil', 'bawah', 'maks', 'rp', 'dana', 'hemat', 'murah']);
+        if ($hasBudgetCue && preg_match('/\b(\d{6,7})\b/', str_replace('.', '', $lowerMessage), $matches)) {
             return (float) $matches[1];
         }
 

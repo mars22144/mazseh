@@ -261,4 +261,33 @@ class AiChatbotTest extends TestCase
             'message' => 'Pertanyaan ke-16 harus diblokir',
         ])->assertStatus(429);
     }
+
+    /**
+     * Memastikan obrolan di luar topik rental mobil dan customer service ditolak dengan pesan standar.
+     */
+    public function test_obrolan_di_luar_konteks_rental_ditolak_dengan_pesan_standar(): void
+    {
+        $response = $this->postJson('/ai-chat', [
+            'message' => 'bantu saya mengerjakan soal, ini soalnya 1+2+3+4+6+90+9-49+666',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath(
+            'reply',
+            'Maaf, sebagai asisten MAZSEH saya hanya dapat membantu Anda seputar informasi rental mobil kami.'
+        );
+        $response->assertJsonPath('status', 'diselesaikan_ai');
+        $response->assertJsonPath('recommended_cars', []);
+        $response->assertJsonPath('whatsapp_url', null);
+
+        $mathResponse = $this->postJson('/ai-chat', [
+            'message' => 'hitung 150000 + 250000',
+        ]);
+
+        $mathResponse->assertStatus(200);
+        $mathResponse->assertJsonPath(
+            'reply',
+            'Maaf, sebagai asisten MAZSEH saya hanya dapat membantu Anda seputar informasi rental mobil kami.'
+        );
+    }
 }
