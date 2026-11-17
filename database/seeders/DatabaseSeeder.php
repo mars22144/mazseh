@@ -23,53 +23,53 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // 1. Akun Pengguna Demo
-        $admin = User::firstOrCreate(
+        $admin = User::updateOrCreate(
             ['email' => 'admin@mazseh.demo'],
             [
                 'name' => 'Admin MAZSEH',
                 'password' => Hash::make('mazseh123'),
                 'role' => 'admin',
                 'phone' => '080000000003',
-                'city' => 'Semarang',
-                'address' => 'Kantor Pusat MAZSEH, Semarang',
+                'city' => 'Klaten',
+                'address' => 'Kantor Pusat MAZSEH, Klaten',
             ]
         );
 
-        $kasir = User::firstOrCreate(
+        $kasir = User::updateOrCreate(
             ['email' => 'kasir@mazseh.demo'],
             [
                 'name' => 'Kasir Contoh',
                 'password' => Hash::make('mazseh123'),
                 'role' => 'kasir',
                 'phone' => '080000000002',
-                'city' => 'Semarang',
-                'address' => 'Pool MAZSEH Cabang Pemuda, Semarang',
+                'city' => 'Klaten',
+                'address' => 'Pool MAZSEH Cabang Pemuda, Klaten',
             ]
         );
 
-        $pelanggan = User::firstOrCreate(
+        $pelanggan = User::updateOrCreate(
             ['email' => 'pelanggan@mazseh.demo'],
             [
                 'name' => 'Pelanggan Contoh',
                 'password' => Hash::make('mazseh123'),
                 'role' => 'pelanggan',
                 'phone' => '081234567890',
-                'city' => 'Semarang',
-                'address' => 'Jl. Pandanaran No. 45, Semarang',
+                'city' => 'Klaten',
+                'address' => 'Jl. Pemuda No. 45, Klaten',
                 'sim_number' => 'SIM-A-33740123456',
             ]
         );
 
         // Akun cadangan agar login budi / email umum tetap bekerja
-        User::firstOrCreate(
+        User::updateOrCreate(
             ['email' => 'budi@gmail.com'],
             [
                 'name' => 'Budi Pelanggan',
                 'password' => Hash::make('mazseh123'),
                 'role' => 'pelanggan',
                 'phone' => '081298765432',
-                'city' => 'Jakarta',
-                'address' => 'Jl. Sudirman No. 12, Jakarta',
+                'city' => 'Klaten',
+                'address' => 'Jl. Merbabu No. 12, Klaten',
             ]
         );
 
@@ -92,7 +92,7 @@ class DatabaseSeeder extends Seeder
                 'transmisi' => 'Otomatis',
                 'jumlah_kursi' => 7,
                 'bahan_bakar' => 'Bensin',
-                'kota' => 'Semarang',
+                'kota' => 'Klaten',
                 'harga_sewa' => 350000.00,
                 'status_ketersediaan' => 'tersedia',
                 'foto_mobil' => '/assets/avanza.png',
@@ -109,7 +109,7 @@ class DatabaseSeeder extends Seeder
                 'transmisi' => 'Otomatis',
                 'jumlah_kursi' => 7,
                 'bahan_bakar' => 'Hybrid',
-                'kota' => 'Semarang',
+                'kota' => 'Klaten',
                 'harga_sewa' => 650000.00,
                 'status_ketersediaan' => 'tersedia',
                 'foto_mobil' => '/assets/zenix.png',
@@ -126,7 +126,7 @@ class DatabaseSeeder extends Seeder
                 'transmisi' => 'Otomatis',
                 'jumlah_kursi' => 7,
                 'bahan_bakar' => 'Diesel',
-                'kota' => 'Semarang',
+                'kota' => 'Klaten',
                 'harga_sewa' => 850000.00,
                 'status_ketersediaan' => 'tersedia',
                 'foto_mobil' => '/assets/fortuner.png',
@@ -143,7 +143,7 @@ class DatabaseSeeder extends Seeder
                 'transmisi' => 'Otomatis',
                 'jumlah_kursi' => 5,
                 'bahan_bakar' => 'Bensin',
-                'kota' => 'Bandung',
+                'kota' => 'Klaten',
                 'harga_sewa' => 250000.00,
                 'status_ketersediaan' => 'tersedia',
                 'foto_mobil' => '/assets/agya.png',
@@ -160,7 +160,7 @@ class DatabaseSeeder extends Seeder
                 'transmisi' => 'Otomatis',
                 'jumlah_kursi' => 7,
                 'bahan_bakar' => 'Hybrid',
-                'kota' => 'Jakarta',
+                'kota' => 'Klaten',
                 'harga_sewa' => 2500000.00,
                 'status_ketersediaan' => 'tersedia',
                 'foto_mobil' => '/assets/alphard.png',
@@ -177,7 +177,7 @@ class DatabaseSeeder extends Seeder
                 'transmisi' => 'Otomatis',
                 'jumlah_kursi' => 5,
                 'bahan_bakar' => 'Hybrid',
-                'kota' => 'Surabaya',
+                'kota' => 'Klaten',
                 'harga_sewa' => 1200000.00,
                 'status_ketersediaan' => 'maintenance',
                 'foto_mobil' => '/assets/camry.png',
@@ -220,7 +220,7 @@ class DatabaseSeeder extends Seeder
                     'opsi_pengemudi' => 'Lepas kunci',
                     'total_harga' => 700000.00,
                     'status_pesanan' => 'menunggu_pembayaran',
-                    'titik_jemput' => 'Pool MAZSEH Semarang Barat, Jl. Pemuda No. 88',
+                    'titik_jemput' => 'Pool MAZSEH Klaten, Jl. Pemuda No. 88',
                     'latitude' => '-6.974300',
                     'longitude' => '110.418400',
                     'catatan' => 'Perjalanan dinas keluarga.',
@@ -252,7 +252,7 @@ class DatabaseSeeder extends Seeder
                     'opsi_pengemudi' => 'Lepas kunci',
                     'total_harga' => 1300000.00,
                     'status_pesanan' => 'dikonfirmasi',
-                    'titik_jemput' => 'Bandara Jenderal Ahmad Yani, Semarang',
+                    'titik_jemput' => 'Stasiun Klaten, Jawa Tengah',
                     'latitude' => '-6.976500',
                     'longitude' => '110.380200',
                     'catatan' => 'Antar tepat waktu di lobby kedatangan.',

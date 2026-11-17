@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('transmisi', 30)->default('Otomatis')->after('tahun');
             $table->unsignedTinyInteger('jumlah_kursi')->default(7)->after('transmisi');
             $table->string('bahan_bakar', 30)->default('Bensin')->after('jumlah_kursi');
-            $table->string('kota', 50)->default('Semarang')->after('bahan_bakar');
+            $table->string('kota', 50)->default('Klaten')->after('bahan_bakar');
             $table->string('foto_mobil', 255)->nullable()->after('kota');
             $table->string('label', 50)->nullable()->after('foto_mobil');
             $table->text('deskripsi')->nullable()->after('label');
