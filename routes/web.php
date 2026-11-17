@@ -23,7 +23,9 @@ Route::get('/terms', [PageController::class, 'terms'])->name('terms');
 Route::get('/privacy', [PageController::class, 'privacy'])->name('privacy');
 
 // AI Chatbot API
-Route::post('/ai-chat', [AiChatController::class, 'sendMessage'])->name('ai-chat.send');
+Route::post('/ai-chat', [AiChatController::class, 'sendMessage'])
+    ->middleware('throttle:ai-chat')
+    ->name('ai-chat.send');
 
 // Guest Authentication Routes
 Route::middleware('guest')->group(function () {
