@@ -34,10 +34,7 @@
                             <label for="filter-city">Kota pengambilan</label>
                             <select id="filter-city" name="city">
                                 <option value="Semua kota">Semua kota</option>
-                                <option value="Semarang" {{ request('city') === 'Semarang' ? 'selected' : '' }}>Semarang</option>
-                                <option value="Jakarta" {{ request('city') === 'Jakarta' ? 'selected' : '' }}>Jakarta</option>
-                                <option value="Bandung" {{ request('city') === 'Bandung' ? 'selected' : '' }}>Bandung</option>
-                                <option value="Surabaya" {{ request('city') === 'Surabaya' ? 'selected' : '' }}>Surabaya</option>
+                                <option value="Klaten" {{ request('city') === 'Klaten' ? 'selected' : '' }}>Klaten</option>
                             </select>
                         </div>
 

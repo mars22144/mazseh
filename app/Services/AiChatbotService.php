@@ -226,17 +226,19 @@ DAFTAR ARMADA REAL-TIME MAZSEH:
 {$catalogText}
 
 ATURAN LAYANAN MAZSEH:
+- Lokasi operasional: Seluruh armada MAZSEH beroperasi di Klaten, Jawa Tengah (Pool Utama: Jl. Pemuda No. 88, Klaten).
 - Opsi pengemudi: Lepas Kunci atau Dengan Sopir (tambahan tarif sopir Rp200.000/hari, belum termasuk BBM, tol, dan parkir).
 - Syarat sewa lepas kunci: Wajib menyiapkan KTP asli dan SIM A aktif (diunggah pada halaman checkout atau menu profil akun).
 - Metode pengambilan: Ambil langsung di pool MAZSEH atau antar ke lokasi pelanggan (tersedia pemilihan titik jemput GPS di checkout).
 - Pembayaran: Mendukung Transfer Bank dan QRIS di halaman pembayaran setelah checkout.
 
 BATASAN KETAT:
-1. HANYA sebutkan mobil, harga, kota, kursi, dan status yang ada di DAFTAR ARMADA di atas. Jangan pernah mengarang unit atau harga fiktif.
-2. Jika suatu mobil berstatus MAINTENANCE (misalnya tidak tersedia sementara), beritahu pelanggan dengan jujur bahwa unit tersebut sedang dalam perawatan dan sarankan alternatif yang statusnya TERSEDIA.
-3. Jangan meminta data sensitif (password, OTP, nomor kartu) dan jangan membahas status transaksi pribadi pelanggan (arahkan ke menu "Pesanan Saya" atau WhatsApp Admin jika menanyakan status booking spesifik).
-4. Isi field `recommended_slugs` hanya dengan slug mobil dari daftar di atas yang relevan dengan jawaban Anda.
-5. Set `needs_whatsapp` menjadi `true` jika pengguna meminta dihubungkan dengan admin/CS/WhatsApp/manusia atau menanyakan hal operasional khusus di luar informasi umum.
+1. HANYA sebutkan mobil, harga, spesifikasi, dan status yang ada di DAFTAR ARMADA di atas. Jangan pernah mengarang unit atau harga fiktif.
+2. JANGAN menyebutkan nama kota atau lokasi ("di Klaten", "lokasi Klaten", dsb.) saat merekomendasikan mobil atau menjawab harga/budget, KECUALI pelanggan secara eksplisit bertanya mengenai lokasi, kota, daerah operasional, atau alamat pool.
+3. Jika suatu mobil berstatus MAINTENANCE (misalnya tidak tersedia sementara), beritahu pelanggan dengan jujur bahwa unit tersebut sedang dalam perawatan dan sarankan alternatif yang statusnya TERSEDIA.
+4. Jangan meminta data sensitif (password, OTP, nomor kartu) dan jangan membahas status transaksi pribadi pelanggan (arahkan ke menu "Pesanan Saya" atau WhatsApp Admin jika menanyakan status booking spesifik).
+5. Isi field `recommended_slugs` hanya dengan slug mobil dari daftar di atas yang relevan dengan jawaban Anda.
+6. Set `needs_whatsapp` menjadi `true` jika pengguna meminta dihubungkan dengan admin/CS/WhatsApp/manusia atau menanyakan hal operasional khusus di luar informasi umum.
 PROMPT;
     }
 
@@ -250,6 +252,8 @@ PROMPT;
     protected function generateLocalFallback(string $message, array $history, Collection $cars): array
     {
         $lower = strtolower(trim($message));
+        $asksLocation = $this->containsWholeWord($lower, ['kota', 'lokasi', 'cabang', 'daerah', 'alamat', 'posisi', 'tempat', 'pool', 'klaten'])
+            || $this->containsAny($lower, ['dimana', 'di mana', 'area mana']);
 
         // 1. Deteksi kebutuhan eskalasi ke WhatsApp Admin (hindari false positive seperti "sewa" atau "bawah")
         if (
@@ -275,14 +279,16 @@ PROMPT;
                     ? 'Saat ini berstatus tersedia untuk dipesan.'
                     : 'Mohon maaf, saat ini unit sedang dalam perawatan (maintenance) sehingga belum dapat disewa sementara.';
 
+                $locationPart = $asksLocation ? ", lokasi {$car->kota}" : '';
+
                 $descriptions[] = sprintf(
-                    '%s (%d, %s, %d kursi, %s, lokasi %s) bertarif mulai %s/hari. %s',
+                    '%s (%d, %s, %d kursi, %s%s) bertarif mulai %s/hari. %s',
                     $car->merk_model,
                     $car->tahun,
                     $car->transmisi,
                     $car->jumlah_kursi,
                     $car->bahan_bakar,
-                    $car->kota,
+                    $locationPart,
                     $car->formatted_price,
                     $statusText
                 );
@@ -361,9 +367,13 @@ PROMPT;
             }
 
             $topCars = $filtered->take(3);
-            $listLines = $topCars->map(
-                fn (KatalogMobil $car): string => "- {$car->merk_model} ({$car->kota}, {$car->jumlah_kursi} kursi) — {$car->formatted_price}/hari"
-            )->implode("\n");
+            $listLines = $topCars->map(function (KatalogMobil $car) use ($asksLocation): string {
+                $meta = $asksLocation
+                    ? "{$car->kota}, {$car->jumlah_kursi} kursi"
+                    : "{$car->jumlah_kursi} kursi, {$car->transmisi}";
+
+                return "- {$car->merk_model} ({$meta}) — {$car->formatted_price}/hari";
+            })->implode("\n");
 
             return [
                 'reply' => "Berikut rekomendasi unit MAZSEH yang tersedia sesuai kebutuhan Anda:\n{$listLines}",
@@ -376,12 +386,23 @@ PROMPT;
         if ($history !== [] && $this->containsAny($lower, ['harganya', 'berapa', 'lebih murah', 'paling murah'])) {
             $cheapest = $availableCars->sortBy('harga_sewa')->first();
             if ($cheapest instanceof KatalogMobil) {
+                $locationSuffix = $asksLocation ? " di {$cheapest->kota}" : '';
+
                 return [
-                    'reply' => "Pilihan tersedia dengan tarif paling terjangkau saat ini adalah {$cheapest->merk_model} di {$cheapest->kota} mulai dari {$cheapest->formatted_price}/hari.",
+                    'reply' => "Pilihan tersedia dengan tarif paling terjangkau saat ini adalah {$cheapest->merk_model}{$locationSuffix} mulai dari {$cheapest->formatted_price}/hari.",
                     'recommended_slugs' => [$cheapest->slug],
                     'needs_whatsapp' => false,
                 ];
             }
+        }
+
+        // 4b. Deteksi pertanyaan khusus lokasi/kota/alamat pool
+        if ($asksLocation) {
+            return [
+                'reply' => 'Seluruh armada MAZSEH beroperasi di Klaten (Pool Utama: Jl. Pemuda No. 88, Klaten, Jawa Tengah). Kami melayani pengambilan langsung di pool maupun pengantaran ke lokasi Anda.',
+                'recommended_slugs' => [],
+                'needs_whatsapp' => false,
+            ];
         }
 
         // 5. Deteksi pertanyaan aturan sewa, syarat, sopir, dan pembayaran
@@ -416,7 +437,7 @@ PROMPT;
         $availableSummary = $availableCars->take(5)->pluck('merk_model')->implode(', ');
 
         return [
-            'reply' => "Halo! MAZSEH menyediakan berbagai unit tersedia seperti {$availableSummary} dengan opsi lepas kunci atau dengan sopir. Silakan sebutkan tipe mobil, kota, jumlah penumpang, atau kisaran budget Anda.",
+            'reply' => "Halo! MAZSEH menyediakan berbagai unit tersedia seperti {$availableSummary} dengan opsi lepas kunci atau dengan sopir. Silakan sebutkan tipe mobil, jumlah penumpang, atau kisaran budget Anda.",
             'recommended_slugs' => [],
             'needs_whatsapp' => false,
         ];

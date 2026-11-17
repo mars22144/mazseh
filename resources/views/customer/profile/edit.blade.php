@@ -35,7 +35,7 @@
                         </div>
                         <div class="field">
                             <label for="city">Kota domisili</label>
-                            <input id="city" name="city" type="text" value="{{ old('city', $user->city) }}" placeholder="Contoh: Semarang">
+                            <input id="city" name="city" type="text" value="{{ old('city', $user->city) }}" placeholder="Contoh: Klaten">
                         </div>
                         <div class="field full">
                             <label for="address">Alamat lengkap penjemputan</label>

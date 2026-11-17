@@ -78,6 +78,7 @@ class AiChatbotTest extends TestCase
         $reply = (string) $response->json('reply');
         $this->assertStringContainsString('Fortuner', $reply);
         $this->assertStringContainsString('Zenix', $reply);
+        $this->assertStringNotContainsStringIgnoringCase('klaten', $reply);
 
         $recommendedSlugs = collect($response->json('recommended_cars'))->pluck('slug')->all();
         $this->assertContains('fortuner', $recommendedSlugs);
@@ -105,21 +106,33 @@ class AiChatbotTest extends TestCase
     }
 
     /**
-     * Memastikan fallback lokal dapat menyaring mobil berdasarkan kota dan budget.
+     * Memastikan fallback lokal menyaring mobil berdasarkan budget tanpa menyebut nama kota kecuali diminta.
      */
     public function test_fallback_lokal_filter_budget_dan_kota_mengembalikan_unit_tersedia(): void
     {
+        // 1. Tanya budget tanpa menyebut kota -> tidak boleh menyebut "Klaten"
         $response = $this->postJson('/ai-chat', [
-            'message' => 'Rekomendasi mobil di Semarang di bawah 500rb',
+            'message' => 'Budget saya cuma 400 ribu, kira kira pake mobil apa ya?',
         ]);
 
         $response->assertStatus(200);
         $reply = (string) $response->json('reply');
+        $this->assertStringContainsString('Agya', $reply);
         $this->assertStringContainsString('Avanza', $reply);
+        $this->assertStringNotContainsStringIgnoringCase('klaten', $reply);
 
         $recommendedSlugs = collect($response->json('recommended_cars'))->pluck('slug')->all();
+        $this->assertContains('agya', $recommendedSlugs);
         $this->assertContains('avanza', $recommendedSlugs);
         $this->assertNotContains('fortuner', $recommendedSlugs);
+
+        // 2. Tanya lokasi secara eksplisit -> wajib menyebut "Klaten"
+        $locationResponse = $this->postJson('/ai-chat', [
+            'message' => 'Di kota mana lokasi pool rental MAZSEH berada?',
+        ]);
+
+        $locationResponse->assertStatus(200);
+        $this->assertStringContainsStringIgnoringCase('klaten', (string) $locationResponse->json('reply'));
     }
 
     /**

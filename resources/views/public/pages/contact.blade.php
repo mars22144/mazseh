@@ -33,7 +33,7 @@
                         <x-icon name="pin" />
                         <div>
                             <h3>Kantor Pusat & Pool Utama</h3>
-                            <p>Jl. Pemuda No. 88, Semarang, Jawa Tengah. Buka setiap hari pukul 07.00 - 22.00 WIB.</p>
+                            <p>Jl. Pemuda No. 88, Klaten, Jawa Tengah. Buka setiap hari pukul 07.00 - 22.00 WIB.</p>
                         </div>
                     </div>
                 </div>
