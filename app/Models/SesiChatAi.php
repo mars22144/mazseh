@@ -11,7 +11,9 @@ class SesiChatAi extends Model
     use HasFactory;
 
     protected $table = 'sesi_chat_ai';
+
     protected $primaryKey = 'id_sesi';
+
     public $timestamps = false;
 
     protected $fillable = [

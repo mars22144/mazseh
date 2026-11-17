@@ -37,5 +37,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('forgot-password', function (Request $request): Limit {
             return Limit::perMinute(5)->by((string) $request->ip());
         });
+
+        // Batasi pengiriman pesan AI Chatbot maksimal 15 kali per menit per IP
+        RateLimiter::for('ai-chat', function (Request $request): Limit {
+            return Limit::perMinute(15)->by((string) $request->ip());
+        });
     }
 }

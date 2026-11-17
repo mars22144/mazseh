@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash-lite'),
+        'endpoint' => env('GEMINI_ENDPOINT', 'https://generativelanguage.googleapis.com/v1beta/interactions'),
+        'api_revision' => env('GEMINI_API_REVISION', '2026-05-20'),
+        'timeout' => (int) env('GEMINI_TIMEOUT', 12),
+    ],
+
+    'whatsapp' => [
+        'admin_number' => env('WHATSAPP_ADMIN_NUMBER', '6285785180423'),
+    ],
+
 ];
