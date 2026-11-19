@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0f172a">
     <meta name="description" content="MAZSEH - Manajemen Armada, Zona Sewa, & E-Rental Handal. Sewa mobil untuk setiap kebutuhan perjalanan Anda.">
-    <title>{{ $title ?? 'MAZSEH | Sewa Mobil untuk Setiap Perjalanan' }}</title>
+    <title>{{ $title ?? 'MAZSEH' }}</title>
 
     <link rel="preload" href="{{ asset('assets/inter-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ asset('css/mazseh.css') }}">

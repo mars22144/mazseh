@@ -1,4 +1,4 @@
-<x-layouts.app title="Katalog Mobil & Filter Sewa | MAZSEH">
+<x-layouts.app title="Katalog Mobil | MAZSEH">
     <div class="container">
         <div class="page-top">
             <div class="breadcrumbs">
