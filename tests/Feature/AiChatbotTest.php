@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\KatalogMobil;
+use App\Models\Transaksi;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpClientRequest;
@@ -289,5 +291,282 @@ class AiChatbotTest extends TestCase
             'reply',
             'Maaf, sebagai asisten MAZSEH saya hanya dapat membantu Anda seputar informasi rental mobil kami.'
         );
+    }
+
+    /**
+     * Memastikan Gemini Interactions API tool calling mendeteksi bentrok jadwal sewa pada tabel transaksi.
+     */
+    public function test_gemini_tool_calling_mendeteksi_bentrok_jadwal_sewa_per_tanggal(): void
+    {
+        config(['services.gemini.api_key' => 'fake-gemini-key']);
+
+        $pelanggan = User::where('role', 'pelanggan')->firstOrFail();
+        $fortuner = KatalogMobil::where('slug', 'fortuner')->firstOrFail();
+
+        Transaksi::create([
+            'user_id' => $pelanggan->id,
+            'id_mobil' => $fortuner->id_mobil,
+            'kode_booking' => 'MZS-TEST-CONFLICT',
+            'tanggal_mulai' => '2026-12-10',
+            'tanggal_selesai' => '2026-12-12',
+            'waktu_ambil' => '09:00',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'total_harga' => 1700000.00,
+            'status_pesanan' => 'dikonfirmasi',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'waktu_pesan' => now(),
+        ]);
+
+        Http::fake([
+            'https://generativelanguage.googleapis.com/v1beta/interactions' => Http::sequence()
+                ->push([
+                    'id' => 'int_turn_1',
+                    'steps' => [
+                        [
+                            'type' => 'thought',
+                            'signature' => 'sig_test_1',
+                            'summary' => 'Mengecek jadwal Fortuner untuk 2026-12-10 sampai 2026-12-12.',
+                        ],
+                        [
+                            'type' => 'function_call',
+                            'id' => 'call_avail_1',
+                            'name' => 'check_car_availability',
+                            'arguments' => [
+                                'car_slug' => 'fortuner',
+                                'start_date' => '2026-12-10',
+                                'end_date' => '2026-12-12',
+                            ],
+                        ],
+                    ],
+                ], 200)
+                ->push([
+                    'id' => 'int_turn_2',
+                    'steps' => [
+                        [
+                            'type' => 'model_output',
+                            'content' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => json_encode([
+                                        'reply' => 'Mohon maaf, Toyota Fortuner sudah terpesan pada tanggal 2026-12-10 hingga 2026-12-12. Sebagai alternatif, Toyota Innova Zenix tersedia pada tanggal tersebut.',
+                                        'recommended_slugs' => ['zenix'],
+                                        'needs_whatsapp' => false,
+                                    ], JSON_THROW_ON_ERROR),
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200),
+        ]);
+
+        $response = $this->postJson('/ai-chat', [
+            'message' => 'Apakah Toyota Fortuner tersedia untuk tanggal 2026-12-10 sampai 2026-12-12?',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('status', 'diselesaikan_ai');
+        $response->assertJsonPath(
+            'reply',
+            'Mohon maaf, Toyota Fortuner sudah terpesan pada tanggal 2026-12-10 hingga 2026-12-12. Sebagai alternatif, Toyota Innova Zenix tersedia pada tanggal tersebut.'
+        );
+
+        $recommendedSlugs = collect($response->json('recommended_cars'))->pluck('slug')->all();
+        $this->assertSame(['zenix'], $recommendedSlugs);
+
+        Http::assertSentCount(2);
+
+        $recorded = Http::recorded();
+        $firstBody = $recorded[0][0]->data();
+        $secondBody = $recorded[1][0]->data();
+
+        $this->assertSame('check_car_availability', $firstBody['tools'][0]['name'] ?? null);
+        $this->assertStringContainsString(now()->format('Y-m-d'), (string) ($firstBody['system_instruction'] ?? ''));
+
+        $secondInput = $secondBody['input'] ?? [];
+        $thoughtStep = collect($secondInput)->firstWhere('type', 'thought');
+        $functionCallStep = collect($secondInput)->firstWhere('type', 'function_call');
+        $functionResultStep = collect($secondInput)->firstWhere('type', 'function_result');
+
+        $this->assertSame('sig_test_1', $thoughtStep['signature'] ?? null);
+        $this->assertSame('call_avail_1', $functionCallStep['id'] ?? null);
+        $this->assertSame('call_avail_1', $functionResultStep['call_id'] ?? null);
+        $this->assertSame('check_car_availability', $functionResultStep['name'] ?? null);
+
+        $toolResultText = (string) ($functionResultStep['result'][0]['text'] ?? '');
+        $this->assertStringNotContainsString('MZS-TEST-CONFLICT', $toolResultText);
+        $this->assertStringNotContainsString($pelanggan->name, $toolResultText);
+
+        $toolPayload = json_decode($toolResultText, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('2026-12-10', $toolPayload['checked_start_date']);
+        $this->assertSame('2026-12-12', $toolPayload['checked_end_date']);
+        $this->assertSame('fortuner', $toolPayload['results'][0]['slug']);
+        $this->assertFalse($toolPayload['results'][0]['available']);
+        $this->assertSame('bentrok_jadwal', $toolPayload['results'][0]['reason']);
+        $this->assertSame('2026-12-10', $toolPayload['results'][0]['conflicting_bookings'][0]['tanggal_mulai']);
+        $this->assertSame('2026-12-12', $toolPayload['results'][0]['conflicting_bookings'][0]['tanggal_selesai']);
+        $this->assertContains('zenix', collect($toolPayload['alternative_available_cars'])->pluck('slug')->all());
+    }
+
+    /**
+     * Memastikan tool calling menormalisasi end_date minimal H+1 untuk query 1 tanggal serta mengabaikan booking yang dibatalkan.
+     */
+    public function test_gemini_tool_calling_menormalisasi_satu_tanggal_dan_mengabaikan_transaksi_dibatalkan(): void
+    {
+        config(['services.gemini.api_key' => 'fake-gemini-key']);
+
+        $pelanggan = User::where('role', 'pelanggan')->firstOrFail();
+        $fortuner = KatalogMobil::where('slug', 'fortuner')->firstOrFail();
+
+        Transaksi::create([
+            'user_id' => $pelanggan->id,
+            'id_mobil' => $fortuner->id_mobil,
+            'kode_booking' => 'MZS-TEST-SINGLE-DAY',
+            'tanggal_mulai' => '2026-12-15',
+            'tanggal_selesai' => '2026-12-17',
+            'waktu_ambil' => '09:00',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'total_harga' => 1700000.00,
+            'status_pesanan' => 'menunggu_pembayaran',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'waktu_pesan' => now(),
+        ]);
+
+        Transaksi::create([
+            'user_id' => $pelanggan->id,
+            'id_mobil' => $fortuner->id_mobil,
+            'kode_booking' => 'MZS-TEST-CANCELLED',
+            'tanggal_mulai' => '2026-12-25',
+            'tanggal_selesai' => '2026-12-27',
+            'waktu_ambil' => '09:00',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'total_harga' => 1700000.00,
+            'status_pesanan' => 'dibatalkan',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'waktu_pesan' => now(),
+        ]);
+
+        Http::fake([
+            'https://generativelanguage.googleapis.com/v1beta/interactions' => Http::sequence()
+                ->push([
+                    'id' => 'int_single_1',
+                    'steps' => [
+                        [
+                            'type' => 'function_call',
+                            'id' => 'call_single_1',
+                            'name' => 'check_car_availability',
+                            'arguments' => [
+                                'car_slug' => 'fortuner',
+                                'start_date' => '2026-12-15',
+                            ],
+                        ],
+                        [
+                            'type' => 'function_call',
+                            'id' => 'call_cancelled_2',
+                            'name' => 'check_car_availability',
+                            'arguments' => [
+                                'car_slug' => 'fortuner',
+                                'start_date' => '2026-12-25',
+                            ],
+                        ],
+                    ],
+                ], 200)
+                ->push([
+                    'id' => 'int_single_2',
+                    'steps' => [
+                        [
+                            'type' => 'model_output',
+                            'content' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => json_encode([
+                                        'reply' => 'Toyota Fortuner tidak tersedia pada 2026-12-15, namun tersedia pada 2026-12-25.',
+                                        'recommended_slugs' => ['fortuner'],
+                                        'needs_whatsapp' => false,
+                                    ], JSON_THROW_ON_ERROR),
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200),
+        ]);
+
+        $response = $this->postJson('/ai-chat', [
+            'message' => 'Cek Fortuner tanggal 2026-12-15 dan 2026-12-25',
+        ]);
+
+        $response->assertStatus(200);
+        Http::assertSentCount(2);
+
+        $secondInput = Http::recorded()[1][0]->data()['input'] ?? [];
+        $resultSteps = collect($secondInput)->where('type', 'function_result')->values();
+        $this->assertCount(2, $resultSteps);
+
+        $singlePayload = json_decode((string) $resultSteps[0]['result'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('2026-12-15', $singlePayload['checked_start_date']);
+        $this->assertSame('2026-12-16', $singlePayload['checked_end_date']);
+        $this->assertFalse($singlePayload['results'][0]['available']);
+        $this->assertSame('bentrok_jadwal', $singlePayload['results'][0]['reason']);
+
+        $cancelledPayload = json_decode((string) $resultSteps[1]['result'][0]['text'], true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame('2026-12-25', $cancelledPayload['checked_start_date']);
+        $this->assertSame('2026-12-26', $cancelledPayload['checked_end_date']);
+        $this->assertTrue($cancelledPayload['results'][0]['available']);
+        $this->assertSame('tersedia', $cancelledPayload['results'][0]['reason']);
+    }
+
+    /**
+     * Memastikan fallback lokal mendeteksi bentrok jadwal sewa dan ketersediaan pada tanggal spesifik.
+     */
+    public function test_fallback_lokal_mendeteksi_bentrok_jadwal_sewa_pada_tanggal_spesifik(): void
+    {
+        config(['services.gemini.api_key' => '']);
+
+        $pelanggan = User::where('role', 'pelanggan')->firstOrFail();
+        $fortuner = KatalogMobil::where('slug', 'fortuner')->firstOrFail();
+
+        Transaksi::create([
+            'user_id' => $pelanggan->id,
+            'id_mobil' => $fortuner->id_mobil,
+            'kode_booking' => 'MZS-FALLBACK-BOOK',
+            'tanggal_mulai' => '2026-12-20',
+            'tanggal_selesai' => '2026-12-22',
+            'waktu_ambil' => '09:00',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'total_harga' => 1700000.00,
+            'status_pesanan' => 'menunggu_pembayaran',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'waktu_pesan' => now(),
+        ]);
+
+        // 1. Tanggal bentrok -> harus menginformasikan sudah terpesan & menyarankan alternatif
+        $conflictResponse = $this->postJson('/ai-chat', [
+            'message' => 'Apakah Fortuner tersedia tanggal 2026-12-20?',
+        ]);
+
+        $conflictResponse->assertStatus(200);
+        $conflictReply = strtolower((string) $conflictResponse->json('reply'));
+        $this->assertStringContainsString('sudah terpesan', $conflictReply);
+        $this->assertStringContainsString('2026-12-20', $conflictReply);
+
+        $conflictRecommendedSlugs = collect($conflictResponse->json('recommended_cars'))->pluck('slug')->all();
+        $this->assertNotContains('fortuner', $conflictRecommendedSlugs);
+        $this->assertNotEmpty($conflictRecommendedSlugs);
+
+        // 2. Tanggal kosong -> harus menginformasikan tersedia
+        $availableResponse = $this->postJson('/ai-chat', [
+            'message' => 'Apakah Fortuner tersedia tanggal 2026-12-28?',
+        ]);
+
+        $availableResponse->assertStatus(200);
+        $availableReply = strtolower((string) $availableResponse->json('reply'));
+        $this->assertStringContainsString('tersedia untuk disewa', $availableReply);
+        $this->assertStringContainsString('2026-12-28', $availableReply);
+
+        $availableRecommendedSlugs = collect($availableResponse->json('recommended_cars'))->pluck('slug')->all();
+        $this->assertContains('fortuner', $availableRecommendedSlugs);
     }
 }
