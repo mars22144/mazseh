@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\KatalogMobil;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -10,6 +11,8 @@ use Throwable;
 
 class AiChatbotService
 {
+    protected const MAX_TOOL_ITERATIONS = 3;
+
     /**
      * Menghasilkan balasan asisten AI (Gemini API dengan auto-fallback mesin lokal).
      *
@@ -98,6 +101,7 @@ class AiChatbotService
             'model' => (string) config('services.gemini.model', 'gemini-3.5-flash-lite'),
             'system_instruction' => $this->buildSystemInstruction($cars),
             'input' => $inputSteps,
+            'tools' => $this->getToolsDeclaration(),
             'store' => false,
             'response_format' => [
                 'type' => 'text',
@@ -125,57 +129,105 @@ class AiChatbotService
         ];
 
         try {
-            $response = Http::timeout((int) config('services.gemini.timeout', 12))
-                ->withHeaders([
-                    'x-goog-api-key' => $apiKey,
-                    'Api-Revision' => (string) config('services.gemini.api_revision', '2026-05-20'),
-                ])
-                ->acceptJson()
-                ->post((string) config('services.gemini.endpoint'), $payload);
+            for ($iteration = 0; $iteration < self::MAX_TOOL_ITERATIONS; $iteration++) {
+                $payload['input'] = $inputSteps;
 
-            if (! $response->successful()) {
-                Log::warning('Gemini API mengembalikan status gagal', [
-                    'status' => $response->status(),
-                ]);
+                $response = Http::timeout((int) config('services.gemini.timeout', 12))
+                    ->withHeaders([
+                        'x-goog-api-key' => $apiKey,
+                        'Api-Revision' => (string) config('services.gemini.api_revision', '2026-05-20'),
+                    ])
+                    ->acceptJson()
+                    ->post((string) config('services.gemini.endpoint'), $payload);
 
-                return null;
-            }
+                if (! $response->successful()) {
+                    Log::warning('Gemini API mengembalikan status gagal', [
+                        'status' => $response->status(),
+                    ]);
 
-            $steps = $response->json('steps', []);
-            if (! is_array($steps)) {
-                return null;
-            }
+                    return null;
+                }
 
-            $rawText = null;
-            foreach (array_reverse($steps) as $step) {
-                if (($step['type'] ?? null) === 'model_output' && is_array($step['content'] ?? null)) {
-                    foreach ($step['content'] as $contentItem) {
-                        if (($contentItem['type'] ?? null) === 'text' && is_string($contentItem['text'] ?? null)) {
-                            $rawText = $contentItem['text'];
-                            break 2;
+                $steps = $response->json('steps', []);
+                if (! is_array($steps)) {
+                    return null;
+                }
+
+                $functionCalls = [];
+                foreach ($steps as $step) {
+                    if (is_array($step) && ($step['type'] ?? null) === 'function_call') {
+                        $functionCalls[] = $step;
+                    }
+                }
+
+                if ($functionCalls !== []) {
+                    // Dalam mode stateless (store: false), teruskan step model (thought & function_call) verbatim
+                    foreach ($steps as $step) {
+                        if (is_array($step) && in_array($step['type'] ?? null, ['thought', 'function_call'], true)) {
+                            $inputSteps[] = $step;
+                        }
+                    }
+
+                    foreach ($functionCalls as $call) {
+                        $callId = (string) ($call['id'] ?? '');
+                        $funcName = (string) ($call['name'] ?? '');
+                        $args = is_array($call['arguments'] ?? null) ? $call['arguments'] : [];
+
+                        $toolOutput = $funcName === 'check_car_availability'
+                            ? $this->executeCheckCarAvailability($args, $cars)
+                            : ['error' => "Tool {$funcName} tidak dikenali."];
+
+                        $inputSteps[] = [
+                            'type' => 'function_result',
+                            'name' => $funcName,
+                            'call_id' => $callId,
+                            'result' => [
+                                [
+                                    'type' => 'text',
+                                    'text' => (string) json_encode($toolOutput, JSON_UNESCAPED_UNICODE),
+                                ],
+                            ],
+                        ];
+                    }
+
+                    continue;
+                }
+
+                $rawText = null;
+                foreach (array_reverse($steps) as $step) {
+                    if (($step['type'] ?? null) === 'model_output' && is_array($step['content'] ?? null)) {
+                        foreach ($step['content'] as $contentItem) {
+                            if (($contentItem['type'] ?? null) === 'text' && is_string($contentItem['text'] ?? null)) {
+                                $rawText = $contentItem['text'];
+                                break 2;
+                            }
                         }
                     }
                 }
+
+                if ($rawText === null || trim($rawText) === '') {
+                    return null;
+                }
+
+                $decoded = json_decode($rawText, true);
+                if (! is_array($decoded) || ! is_string($decoded['reply'] ?? null) || trim($decoded['reply']) === '') {
+                    return null;
+                }
+
+                $slugs = is_array($decoded['recommended_slugs'] ?? null)
+                    ? array_values(array_filter($decoded['recommended_slugs'], 'is_string'))
+                    : [];
+
+                return [
+                    'reply' => trim($decoded['reply']),
+                    'recommended_slugs' => $slugs,
+                    'needs_whatsapp' => (bool) ($decoded['needs_whatsapp'] ?? false),
+                ];
             }
 
-            if ($rawText === null || trim($rawText) === '') {
-                return null;
-            }
+            Log::warning('Gemini API melebihi batas maksimum iterasi tool calling');
 
-            $decoded = json_decode($rawText, true);
-            if (! is_array($decoded) || ! is_string($decoded['reply'] ?? null) || trim($decoded['reply']) === '') {
-                return null;
-            }
-
-            $slugs = is_array($decoded['recommended_slugs'] ?? null)
-                ? array_values(array_filter($decoded['recommended_slugs'], 'is_string'))
-                : [];
-
-            return [
-                'reply' => trim($decoded['reply']),
-                'recommended_slugs' => $slugs,
-                'needs_whatsapp' => (bool) ($decoded['needs_whatsapp'] ?? false),
-            ];
+            return null;
         } catch (Throwable $exception) {
             Log::warning('Gagal menghubungi Gemini API, beralih ke fallback lokal', [
                 'message' => $exception->getMessage(),
@@ -183,6 +235,155 @@ class AiChatbotService
 
             return null;
         }
+    }
+
+    /**
+     * Mendefinisikan daftar tool (Function Calling) untuk Gemini Interactions API.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function getToolsDeclaration(): array
+    {
+        return [
+            [
+                'type' => 'function',
+                'name' => 'check_car_availability',
+                'description' => 'Mengecek ketersediaan jadwal sewa mobil MAZSEH pada rentang tanggal tertentu berdasarkan database transaksi real-time. Panggil tool ini setiap kali pelanggan menanyakan ketersediaan mobil pada tanggal atau hari tertentu (misal: hari ini, besok, lusa, atau tanggal spesifik).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'start_date' => [
+                            'type' => 'string',
+                            'description' => 'Tanggal mulai sewa dalam format YYYY-MM-DD.',
+                        ],
+                        'end_date' => [
+                            'type' => 'string',
+                            'description' => 'Tanggal selesai sewa dalam format YYYY-MM-DD. Jika pelanggan hanya menyebut 1 tanggal, isi dengan H+1 dari start_date.',
+                        ],
+                        'car_slug' => [
+                            'type' => 'string',
+                            'description' => 'Opsional. Slug mobil spesifik yang ingin dicek (contoh: avanza, zenix, fortuner, agya, alphard, camry). Kosongkan jika ingin mengecek semua mobil pada tanggal tersebut.',
+                        ],
+                    ],
+                    'required' => ['start_date'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Mengeksekusi pengecekan ketersediaan jadwal mobil berdasarkan rentang tanggal di database transaksi.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @param  Collection<int, KatalogMobil>  $cars
+     * @return array<string, mixed>
+     */
+    protected function executeCheckCarAvailability(array $arguments, Collection $cars): array
+    {
+        $rawStart = trim((string) ($arguments['start_date'] ?? ''));
+        $rawEnd = trim((string) ($arguments['end_date'] ?? ''));
+        $carSlug = strtolower(trim((string) ($arguments['car_slug'] ?? '')));
+
+        if ($rawStart === '') {
+            return [
+                'error' => 'Parameter start_date wajib diisi dalam format YYYY-MM-DD.',
+            ];
+        }
+
+        try {
+            $startDate = Carbon::parse($rawStart)->startOfDay();
+        } catch (Throwable) {
+            return [
+                'error' => 'Format start_date tidak valid. Gunakan format YYYY-MM-DD.',
+            ];
+        }
+
+        if ($rawEnd !== '') {
+            try {
+                $endDate = Carbon::parse($rawEnd)->startOfDay();
+            } catch (Throwable) {
+                $endDate = $startDate->copy()->addDay();
+            }
+        } else {
+            $endDate = $startDate->copy()->addDay();
+        }
+
+        if ($endDate->lessThanOrEqualTo($startDate)) {
+            $endDate = $startDate->copy()->addDay();
+        }
+
+        $startStr = $startDate->format('Y-m-d');
+        $endStr = $endDate->format('Y-m-d');
+
+        $targetCars = $carSlug !== ''
+            ? $cars->filter(fn (KatalogMobil $car): bool => strtolower($car->slug) === $carSlug)->values()
+            : $cars->values();
+
+        if ($targetCars->isEmpty()) {
+            $targetCars = $cars->values();
+        }
+
+        $results = [];
+        foreach ($targetCars as $car) {
+            if ($car->status_ketersediaan !== 'tersedia') {
+                $results[] = [
+                    'slug' => $car->slug,
+                    'name' => $car->merk_model,
+                    'price_per_day' => $car->formatted_price,
+                    'available' => false,
+                    'reason' => 'sedang_maintenance',
+                    'conflicting_bookings' => [],
+                ];
+
+                continue;
+            }
+
+            $isAvailable = $car->isAvailableForDates($startStr, $endStr);
+            $conflicts = [];
+
+            if (! $isAvailable) {
+                $conflicts = $car->transaksi()
+                    ->whereNotIn('status_pesanan', ['dibatalkan'])
+                    ->where('tanggal_mulai', '<', $endStr)
+                    ->where('tanggal_selesai', '>', $startStr)
+                    ->orderBy('tanggal_mulai')
+                    ->get(['tanggal_mulai', 'tanggal_selesai'])
+                    ->map(static fn ($trx): array => [
+                        'tanggal_mulai' => Carbon::parse($trx->tanggal_mulai)->format('Y-m-d'),
+                        'tanggal_selesai' => Carbon::parse($trx->tanggal_selesai)->format('Y-m-d'),
+                    ])
+                    ->all();
+            }
+
+            $results[] = [
+                'slug' => $car->slug,
+                'name' => $car->merk_model,
+                'price_per_day' => $car->formatted_price,
+                'available' => $isAvailable,
+                'reason' => $isAvailable ? 'tersedia' : 'bentrok_jadwal',
+                'conflicting_bookings' => $conflicts,
+            ];
+        }
+
+        $alternativeAvailable = [];
+        if ($carSlug !== '') {
+            $alternativeAvailable = $cars
+                ->filter(fn (KatalogMobil $car): bool => strtolower($car->slug) !== $carSlug && $car->isAvailableForDates($startStr, $endStr))
+                ->map(static fn (KatalogMobil $car): array => [
+                    'slug' => $car->slug,
+                    'name' => $car->merk_model,
+                    'price_per_day' => $car->formatted_price,
+                ])
+                ->values()
+                ->all();
+        }
+
+        return [
+            'checked_start_date' => $startStr,
+            'checked_end_date' => $endStr,
+            'results' => $results,
+            'alternative_available_cars' => $alternativeAvailable,
+        ];
     }
 
     /**
@@ -217,10 +418,17 @@ class AiChatbotService
         }
 
         $catalogText = implode("\n", $catalogLines);
+        $today = now()->format('Y-m-d');
+        $tomorrow = now()->addDay()->format('Y-m-d');
+        $dayAfterTomorrow = now()->addDays(2)->format('Y-m-d');
 
         return <<<PROMPT
 Anda adalah Asisten Virtual resmi MAZSEH (layanan sewa/rental mobil terpercaya).
 Jawablah selalu dalam Bahasa Indonesia yang ramah, ringkas, sopan, dan akurat.
+
+WAKTU REFERENSI SERVER:
+- Tanggal hari ini: {$today} (besok: {$tomorrow}, lusa: {$dayAfterTomorrow}).
+- Gunakan tanggal referensi ini ketika pelanggan menyebut waktu relatif seperti "hari ini", "besok", "lusa", atau tanggal tanpa tahun.
 
 DAFTAR ARMADA REAL-TIME MAZSEH:
 {$catalogText}
@@ -231,6 +439,10 @@ ATURAN LAYANAN MAZSEH:
 - Syarat sewa lepas kunci: Wajib menyiapkan KTP asli dan SIM A aktif (diunggah pada halaman checkout atau menu profil akun).
 - Metode pengambilan: Ambil langsung di pool MAZSEH atau antar ke lokasi pelanggan (tersedia pemilihan titik jemput GPS di checkout).
 - Pembayaran: Mendukung Transfer Bank dan QRIS di halaman pembayaran setelah checkout.
+
+ATURAN PENGGUNAAN TOOL:
+- Jika pelanggan menanyakan ketersediaan mobil pada tanggal/hari tertentu, WAJIB panggil tool `check_car_availability` dengan `start_date` (dan `end_date` jika ada) dalam format YYYY-MM-DD sebelum menjawab.
+- Jika hasil tool menunjukkan unit sedang dibooking (`bentrok_jadwal`) pada tanggal tersebut, beritahu pelanggan secara jelas rentang tanggal yang sudah terisi dan rekomendasikan unit alternatif yang berstatus tersedia (`available: true`) dari hasil tool.
 
 BATASAN KETAT:
 1. HANYA sebutkan mobil, harga, spesifikasi, dan status yang ada di DAFTAR ARMADA di atas. Jangan pernah mengarang unit atau harga fiktif.
@@ -269,18 +481,31 @@ PROMPT;
         }
 
         // 2. Deteksi seluruh mobil yang disebut dalam pesan (mendukung multi-mobil sekaligus, misal Fortuner & Zenix)
+        $dateRange = $this->extractRequestedDateRange($lower);
         $matchedCars = $this->detectMentionedCars($lower, $cars);
         if ($matchedCars->isNotEmpty()) {
             $descriptions = [];
             $slugs = [];
+            $hasDateConflict = false;
 
             foreach ($matchedCars as $car) {
-                $slugs[] = $car->slug;
-                $statusText = $car->status_ketersediaan === 'tersedia'
-                    ? 'Saat ini berstatus tersedia untuk dipesan.'
-                    : 'Mohon maaf, saat ini unit sedang dalam perawatan (maintenance) sehingga belum dapat disewa sementara.';
-
                 $locationPart = $asksLocation ? ", lokasi {$car->kota}" : '';
+
+                if ($car->status_ketersediaan !== 'tersedia') {
+                    $slugs[] = $car->slug;
+                    $statusText = 'Mohon maaf, saat ini unit sedang dalam perawatan (maintenance) sehingga belum dapat disewa sementara.';
+                } elseif ($dateRange !== null) {
+                    if ($car->isAvailableForDates($dateRange['start'], $dateRange['end'])) {
+                        $slugs[] = $car->slug;
+                        $statusText = "Saat ini tersedia untuk disewa pada tanggal {$dateRange['start']} s/d {$dateRange['end']}.";
+                    } else {
+                        $hasDateConflict = true;
+                        $statusText = "Mohon maaf, unit ini sudah terpesan (tidak tersedia) pada tanggal {$dateRange['start']} s/d {$dateRange['end']}.";
+                    }
+                } else {
+                    $slugs[] = $car->slug;
+                    $statusText = 'Saat ini berstatus tersedia untuk dipesan.';
+                }
 
                 $descriptions[] = sprintf(
                     '%s (%d, %s, %d kursi, %s%s) bertarif mulai %s/hari. %s',
@@ -295,17 +520,50 @@ PROMPT;
                 );
             }
 
+            if ($hasDateConflict && $dateRange !== null) {
+                $matchedSlugs = $matchedCars->pluck('slug')->all();
+                $alternatives = $cars
+                    ->filter(fn (KatalogMobil $car): bool => ! in_array($car->slug, $matchedSlugs, true) && $car->isAvailableForDates($dateRange['start'], $dateRange['end']))
+                    ->take(3)
+                    ->values();
+
+                if ($alternatives->isNotEmpty()) {
+                    $altLines = $alternatives->map(
+                        static fn (KatalogMobil $car): string => "- {$car->merk_model} ({$car->formatted_price}/hari)"
+                    )->implode("\n");
+                    $descriptions[] = "Sebagai alternatif yang tersedia pada tanggal {$dateRange['start']} s/d {$dateRange['end']}:\n{$altLines}";
+
+                    foreach ($alternatives as $alt) {
+                        $slugs[] = $alt->slug;
+                    }
+                }
+            }
+
             return [
                 'reply' => implode("\n\n", $descriptions),
-                'recommended_slugs' => $slugs,
+                'recommended_slugs' => array_values(array_unique($slugs)),
                 'needs_whatsapp' => false,
             ];
         }
 
-        // 3. Deteksi filter kota, kursi, atau budget pada armada yang tersedia
+        // 3. Deteksi filter kota, kursi, tanggal, atau budget pada armada yang tersedia
         $availableCars = $cars->where('status_ketersediaan', 'tersedia')->values();
+        if ($dateRange !== null) {
+            $availableCars = $availableCars
+                ->filter(fn (KatalogMobil $car): bool => $car->isAvailableForDates($dateRange['start'], $dateRange['end']))
+                ->values();
+        }
+
         $filtered = $availableCars;
         $hasFilter = false;
+        $hasRentalDateIntent = $dateRange !== null && (
+            $this->containsWholeWord($lower, ['mobil', 'unit', 'armada', 'rental', 'sewa', 'tersedia', 'kosong', 'ready', 'booking', 'pesan'])
+            || $this->containsAny($lower, ['tersedia', 'kosong'])
+        );
+
+        if ($hasRentalDateIntent) {
+            $hasFilter = true;
+        }
 
         // Filter kota berdasarkan kota yang ada di database
         $cities = $availableCars->pluck('kota')->unique()->filter();
@@ -376,8 +634,12 @@ PROMPT;
                 return "- {$car->merk_model} ({$meta}) — {$car->formatted_price}/hari";
             })->implode("\n");
 
+            $headerText = $dateRange !== null
+                ? "Berikut rekomendasi unit MAZSEH yang tersedia pada tanggal {$dateRange['start']} s/d {$dateRange['end']}:"
+                : 'Berikut rekomendasi unit MAZSEH yang tersedia sesuai kebutuhan Anda:';
+
             return [
-                'reply' => "Berikut rekomendasi unit MAZSEH yang tersedia sesuai kebutuhan Anda:\n{$listLines}",
+                'reply' => "{$headerText}\n{$listLines}",
                 'recommended_slugs' => $topCars->pluck('slug')->all(),
                 'needs_whatsapp' => false,
             ];
@@ -508,6 +770,57 @@ PROMPT;
         $hasBudgetCue = $this->containsAny($lowerMessage, ['budget', 'harga', 'tarif', 'sewa', 'mobil', 'bawah', 'maks', 'rp', 'dana', 'hemat', 'murah']);
         if ($hasBudgetCue && preg_match('/\b(\d{6,7})\b/', str_replace('.', '', $lowerMessage), $matches)) {
             return (float) $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Ekstrak rentang tanggal sewa sederhana dari pesan pengguna (YYYY-MM-DD, hari ini, besok, lusa).
+     *
+     * @return array{start: string, end: string}|null
+     */
+    protected function extractRequestedDateRange(string $lowerMessage): ?array
+    {
+        if (preg_match_all('/\b(\d{4}-\d{2}-\d{2})\b/', $lowerMessage, $matches) && $matches[1] !== []) {
+            try {
+                $startDate = Carbon::parse($matches[1][0])->startOfDay();
+                $endDate = isset($matches[1][1])
+                    ? Carbon::parse($matches[1][1])->startOfDay()
+                    : $startDate->copy()->addDay();
+
+                if ($endDate->lessThanOrEqualTo($startDate)) {
+                    $endDate = $startDate->copy()->addDay();
+                }
+
+                return [
+                    'start' => $startDate->format('Y-m-d'),
+                    'end' => $endDate->format('Y-m-d'),
+                ];
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
+        if (str_contains($lowerMessage, 'hari ini')) {
+            return [
+                'start' => now()->format('Y-m-d'),
+                'end' => now()->addDay()->format('Y-m-d'),
+            ];
+        }
+
+        if ($this->containsWholeWord($lowerMessage, ['besok'])) {
+            return [
+                'start' => now()->addDay()->format('Y-m-d'),
+                'end' => now()->addDays(2)->format('Y-m-d'),
+            ];
+        }
+
+        if ($this->containsWholeWord($lowerMessage, ['lusa'])) {
+            return [
+                'start' => now()->addDays(2)->format('Y-m-d'),
+                'end' => now()->addDays(3)->format('Y-m-d'),
+            ];
         }
 
         return null;
