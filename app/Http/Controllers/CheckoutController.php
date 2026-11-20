@@ -6,6 +6,7 @@ use App\Models\DocumentPelanggan;
 use App\Models\KatalogMobil;
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ class CheckoutController extends Controller
                 ->with('error', 'Maaf, unit ini tidak tersedia pada jadwal tanggal yang dipilih.');
         }
 
+        /** @var User $user */
         $user = Auth::user();
         $document = $user->dokumenPelanggan;
 
@@ -44,6 +46,8 @@ class CheckoutController extends Controller
     public function store(Request $request, string $slug): RedirectResponse
     {
         $car = KatalogMobil::where('slug', $slug)->firstOrFail();
+
+        /** @var User $user */
         $user = Auth::user();
 
         $validated = $request->validate([
