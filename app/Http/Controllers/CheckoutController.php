@@ -84,12 +84,10 @@ class CheckoutController extends Controller
         $ktpPath = null;
         $simPath = null;
         if ($request->hasFile('file_ktp')) {
-            $ktpPath = $request->file('file_ktp')->store('documents', 'public');
-            $ktpPath = '/storage/' . $ktpPath;
+            $ktpPath = $request->file('file_ktp')->store('documents', 'local');
         }
         if ($request->hasFile('file_sim')) {
-            $simPath = $request->file('file_sim')->store('documents', 'public');
-            $simPath = '/storage/' . $simPath;
+            $simPath = $request->file('file_sim')->store('documents', 'local');
         }
 
         $doc = DocumentPelanggan::firstOrNew(['user_id' => $user->id]);

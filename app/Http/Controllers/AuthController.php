@@ -63,7 +63,6 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'phone' => $validated['phone'],
             'password' => Hash::make($validated['password']),
-            'role' => 'pelanggan',
         ]);
 
         return redirect()->route('login')

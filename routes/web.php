@@ -13,6 +13,8 @@ use App\Http\Controllers\Kasir\PaymentController as KasirPaymentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SecureFileController;
+use App\Http\Controllers\StaffSettingsController;
 use Illuminate\Support\Facades\Route;
 
 // Public Pages
@@ -68,6 +70,20 @@ Route::middleware('auth')->group(function () {
     // Customer Profile & Document Verification
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // Berkas pribadi (KTP/SIM & bukti bayar) hanya untuk pemilik atau staf
+    Route::get('/berkas/dokumen/{userId}/{type}', [SecureFileController::class, 'document'])
+        ->whereNumber('userId')->whereIn('type', ['ktp', 'sim'])->name('files.document');
+    Route::get('/berkas/pembayaran/{paymentId}', [SecureFileController::class, 'paymentProof'])
+        ->whereNumber('paymentId')->name('files.payment');
+});
+
+// Pengaturan akun staf (kasir & admin)
+Route::middleware(['auth', 'role:kasir,admin'])->prefix('pengaturan')->name('staff.settings.')->group(function () {
+    Route::get('/', [StaffSettingsController::class, 'edit'])->name('edit');
+    Route::put('/profil', [StaffSettingsController::class, 'updateProfile'])->name('profile');
+    Route::put('/kata-sandi', [StaffSettingsController::class, 'updatePassword'])->middleware('throttle:6,1')->name('password');
+    Route::delete('/sesi-lain', [StaffSettingsController::class, 'logoutOtherSessions'])->middleware('throttle:6,1')->name('sessions');
 });
 
 // Admin Panel

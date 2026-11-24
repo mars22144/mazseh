@@ -55,8 +55,8 @@
                                 @if($document)
                                     <span class="badge {{ $document->status_badge_class }}"><x-icon name="shield" />{{ $document->status_label }}</span>
                                     <small class="inline-actions" style="margin-top:6px;">
-                                        @if($document->file_ktp)<a href="{{ $document->file_ktp }}" target="_blank" rel="noopener" class="text-link">KTP</a>@endif
-                                        @if($document->file_sim)<a href="{{ $document->file_sim }}" target="_blank" rel="noopener" class="text-link">SIM</a>@endif
+                                        @if($document->file_ktp)<a href="{{ route('files.document', [$user->id, 'ktp']) }}" target="_blank" rel="noopener" class="text-link">KTP</a>@endif
+                                        @if($document->file_sim)<a href="{{ route('files.document', [$user->id, 'sim']) }}" target="_blank" rel="noopener" class="text-link">SIM</a>@endif
                                     </small>
                                     @if($document->status_verifikasi === 'menunggu_validasi')
                                         <form action="{{ route('admin.users.document', $user->id) }}" method="POST" class="inline-actions" style="margin-top:8px;">

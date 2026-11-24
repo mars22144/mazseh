@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\DocumentPelanggan;
+use App\Models\LogActivity;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,7 +65,9 @@ class UserController extends Controller
         }
 
         $validated = $request->validate(['role' => ['required', Rule::in(array_keys(self::ROLES))]]);
-        $user->update(['role' => $validated['role']]);
+        $previousRole = $user->role;
+        $user->forceFill(['role' => $validated['role']])->save();
+        LogActivity::record('users', 'UPDATE', "Mengubah peran {$user->email} dari {$previousRole} menjadi {$validated['role']}.");
 
         return back()->with('success', "Peran {$user->name} kini ".self::ROLES[$validated['role']].'.');
     }
@@ -77,6 +80,7 @@ class UserController extends Controller
         $validated = $request->validate(['status' => ['required', Rule::in(['disetujui', 'ditolak'])]]);
         $document = DocumentPelanggan::where('user_id', $id)->firstOrFail();
         $document->update(['status_verifikasi' => $validated['status']]);
+        LogActivity::record('document_pelanggan', 'UPDATE', "Dokumen KTP/SIM {$document->user->email} {$validated['status']}.");
 
         return back()->with('success', 'Dokumen '.$document->user->name.' '.($validated['status'] === 'disetujui' ? 'disetujui.' : 'ditolak.'));
     }

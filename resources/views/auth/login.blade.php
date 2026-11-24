@@ -46,7 +46,8 @@
                     Belum memiliki akun? <a href="{{ route('register') }}" class="text-link" style="min-height:auto;">Daftar sekarang</a>
                 </p>
 
-                <!-- Demo Accounts Quick Fill -->
+                {{-- Akun demo hanya ditampilkan di lingkungan lokal agar kredensial tidak bocor di produksi --}}
+                @if(app()->environment('local'))
                 <div class="demo-accounts">
                     <p><strong>Coba dengan akun demo</strong><br>Klik salah satu akun di bawah untuk mengisi formulir secara otomatis:</p>
                     <div class="od-cluster">
@@ -55,6 +56,7 @@
                         <button type="button" class="btn btn-outline btn-small demo-btn" data-email="admin@mazseh.demo" data-pass="mazseh123">Admin</button>
                     </div>
                 </div>
+                @endif
             </div>
         </section>
     </div>

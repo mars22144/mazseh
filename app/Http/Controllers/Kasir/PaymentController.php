@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Kasir;
 
 use App\Http\Controllers\Controller;
+use App\Models\LogActivity;
 use App\Models\Pembayaran;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -118,6 +119,7 @@ class PaymentController extends Controller
             ])->save();
 
             $order->update(['status_pesanan' => 'dikonfirmasi']);
+            LogActivity::record('pembayaran', 'UPDATE', "Menerima pembayaran {$order->kode_booking} sebesar {$payment->formatted_amount} via {$payment->metode_pembayaran}.");
 
             return '';
         });
@@ -152,6 +154,7 @@ class PaymentController extends Controller
                 'waktu_verifikasi' => now(),
                 'catatan_kasir' => $validated['catatan_kasir'],
             ])->save();
+            LogActivity::record('pembayaran', 'UPDATE', "Menolak pembayaran {$payment->transaksi->kode_booking}: {$validated['catatan_kasir']}");
 
             return '';
         });

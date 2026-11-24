@@ -91,8 +91,7 @@ class OrderController extends Controller
 
         $buktiPath = null;
         if ($request->hasFile('bukti_bayar')) {
-            $buktiPath = $request->file('bukti_bayar')->store('payments', 'public');
-            $buktiPath = '/storage/' . $buktiPath;
+            $buktiPath = $request->file('bukti_bayar')->store('payments', 'local');
         }
 
         $pembayaran = $transaksi->pembayaran ?? new Pembayaran(['id_transaksi' => $transaksi->id_transaksi]);
