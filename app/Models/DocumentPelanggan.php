@@ -11,6 +11,7 @@ class DocumentPelanggan extends Model
     use HasFactory;
 
     protected $table = 'document_pelanggan';
+
     protected $primaryKey = 'id_dokumen';
 
     protected $fillable = [
@@ -18,6 +19,7 @@ class DocumentPelanggan extends Model
         'file_ktp',
         'file_sim',
         'status_verifikasi',
+        'catatan_verifikasi',
     ];
 
     /**

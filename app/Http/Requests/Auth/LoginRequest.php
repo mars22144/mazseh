@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,8 +35,21 @@ class LoginRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         if ($this->has('email') && is_string($this->input('email'))) {
+            $rawEmail = $this->input('email');
+            $activityLog = app(ActivityLogService::class);
+
+            if ($activityLog->containsSqlInjectionPattern($rawEmail)) {
+                $activityLog->log(
+                    'users',
+                    'SQLI_ATTEMPT',
+                    'Percobaan input mencurigakan pada login: '.$rawEmail,
+                    null,
+                    $this->ip()
+                );
+            }
+
             $this->merge([
-                'email' => Str::lower(trim($this->input('email'))),
+                'email' => Str::lower(trim($rawEmail)),
             ]);
         }
     }
@@ -94,6 +108,14 @@ class LoginRequest extends FormRequest
 
         if (! $user || ! $passwordValid) {
             RateLimiter::hit($this->throttleKey(), 60);
+
+            app(ActivityLogService::class)->log(
+                'users',
+                'LOGIN_FAILED',
+                'Gagal login untuk email: '.$email,
+                $user?->id,
+                $this->ip()
+            );
 
             throw ValidationException::withMessages([
                 'email' => 'Alamat email atau kata sandi tidak cocok dengan data kami.',

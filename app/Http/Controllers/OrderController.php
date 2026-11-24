@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
+use App\Models\User;
+use App\Services\TransaksiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,6 +14,8 @@ use Illuminate\View\View;
 
 class OrderController extends Controller
 {
+    public function __construct(public TransaksiService $transaksiService) {}
+
     /**
      * Tampilkan daftar pesanan milik pelanggan.
      */
@@ -96,7 +100,7 @@ class OrderController extends Controller
 
         $pembayaran = $transaksi->pembayaran ?? new Pembayaran(['id_transaksi' => $transaksi->id_transaksi]);
         $pembayaran->metode_pembayaran = $validated['metode_pembayaran'];
-        $pembayaran->referensi_pembayaran = $validated['referensi_pembayaran'] ?? 'PAY-' . strtoupper(bin2hex(random_bytes(4)));
+        $pembayaran->referensi_pembayaran = $validated['referensi_pembayaran'] ?? 'PAY-'.strtoupper(bin2hex(random_bytes(4)));
         if ($buktiPath) {
             $pembayaran->bukti_bayar = $buktiPath;
         }
@@ -150,6 +154,7 @@ class OrderController extends Controller
      */
     public function cancel(Request $request, int $id): RedirectResponse
     {
+        /** @var User $user */
         $user = Auth::user();
         $order = Transaksi::where('user_id', $user->id)
             ->where('id_transaksi', $id)
@@ -159,16 +164,17 @@ class OrderController extends Controller
             return back()->with('error', 'Pesanan ini sudah dibatalkan sebelumnya.');
         }
 
+        if ($order->status_pesanan === 'selesai') {
+            return back()->with('error', 'Pesanan yang sudah selesai tidak dapat dibatalkan.');
+        }
+
         $validated = $request->validate([
             'alasan_batal' => ['required', 'string', 'max:500'],
         ]);
 
-        $order->update([
-            'status_pesanan' => 'dibatalkan',
-            'alasan_batal' => $validated['alasan_batal'],
-        ]);
+        $this->transaksiService->cancelOrder($order, $validated['alasan_batal'], $user);
 
         return redirect()->route('orders.show', $order->id_transaksi)
-            ->with('success', 'Pesanan ' . $order->kode_booking . ' telah berhasil dibatalkan.');
+            ->with('success', 'Pesanan '.$order->kode_booking.' telah berhasil dibatalkan.');
     }
 }

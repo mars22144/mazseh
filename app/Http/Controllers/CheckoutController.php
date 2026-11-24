@@ -4,18 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\DocumentPelanggan;
 use App\Models\KatalogMobil;
-use App\Models\Pembayaran;
-use App\Models\Transaksi;
 use App\Models\User;
-use Carbon\Carbon;
+use App\Services\TransaksiService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CheckoutController extends Controller
 {
+    public function __construct(public TransaksiService $transaksiService) {}
+
     /**
      * Tampilkan halaman checkout 3 langkah untuk mobil yang dipilih.
      */
@@ -28,7 +27,7 @@ class CheckoutController extends Controller
         $start = $request->query('start', now()->addDay()->format('Y-m-d'));
         $end = $request->query('end', now()->addDays(3)->format('Y-m-d'));
 
-        if (!$car->isAvailableForDates($start, $end)) {
+        if (! $car->isAvailableForDates($start, $end)) {
             return redirect()->route('catalog.show', ['slug' => $car->slug, 'start' => $start, 'end' => $end])
                 ->with('error', 'Maaf, unit ini tidak tersedia pada jadwal tanggal yang dipilih.');
         }
@@ -63,16 +62,15 @@ class CheckoutController extends Controller
             'phone' => ['required', 'string', 'max:30'],
             'sim_number' => ['required', 'string', 'max:50'],
             'catatan' => ['nullable', 'string', 'max:500'],
+            'versi' => ['nullable', 'integer', 'min:0'],
             'file_ktp' => ['nullable', 'image', 'max:3072'],
             'file_sim' => ['nullable', 'image', 'max:3072'],
         ]);
 
-        // Cek ketersediaan jadwal
-        if (!$car->isAvailableForDates($validated['start'], $validated['end'])) {
+        if (! $car->isAvailableForDates($validated['start'], $validated['end'])) {
             return back()->with('error', 'Maaf, unit telah dipesan oleh pelanggan lain pada jadwal ini.');
         }
 
-        // Perbarui info user jika belum lengkap
         $user->update([
             'name' => $validated['name'],
             'phone' => $validated['phone'],
@@ -80,7 +78,6 @@ class CheckoutController extends Controller
             'address' => $validated['titik_jemput'],
         ]);
 
-        // Upload Dokumen KTP & SIM
         $ktpPath = null;
         $simPath = null;
         if ($request->hasFile('file_ktp')) {
@@ -97,52 +94,16 @@ class CheckoutController extends Controller
         if ($simPath) {
             $doc->file_sim = $simPath;
         }
-        if (!$doc->exists) {
+        if (! $doc->exists) {
             $doc->status_verifikasi = ($ktpPath && $simPath) ? 'menunggu_validasi' : 'belum_upload';
         } elseif ($ktpPath || $simPath) {
             $doc->status_verifikasi = 'menunggu_validasi';
         }
         $doc->save();
 
-        // Kalkulasi Total Biaya
-        $startDate = Carbon::parse($validated['start']);
-        $endDate = Carbon::parse($validated['end']);
-        $days = max(1, $startDate->diffInDays($endDate));
-        $driverFee = ($validated['opsi_pengemudi'] === 'Dengan sopir') ? 200000 : 0;
-        $totalHarga = ($car->harga_sewa + $driverFee) * $days;
-
-        // Buat Kode Booking Unik
-        $kodeBooking = 'MZS-' . strtoupper(Str::random(6));
-
-        // Buat Record Transaksi
-        $transaksi = Transaksi::create([
-            'user_id' => $user->id,
-            'id_mobil' => $car->id_mobil,
-            'kode_booking' => $kodeBooking,
-            'tanggal_mulai' => $validated['start'],
-            'tanggal_selesai' => $validated['end'],
-            'waktu_ambil' => $validated['waktu_ambil'],
-            'opsi_pengemudi' => $validated['opsi_pengemudi'],
-            'metode_pengambilan' => $validated['metode_pengambilan'],
-            'titik_jemput' => $validated['titik_jemput'],
-            'latitude' => $validated['latitude'] ?? null,
-            'longitude' => $validated['longitude'] ?? null,
-            'total_harga' => $totalHarga,
-            'status_pesanan' => 'menunggu_pembayaran',
-            'catatan' => $validated['catatan'] ?? null,
-            'waktu_pesan' => now(),
-        ]);
-
-        // Buat Record Pembayaran Awal
-        Pembayaran::create([
-            'id_transaksi' => $transaksi->id_transaksi,
-            'jumlah_bayar' => $totalHarga,
-            'status_pembayaran' => 'pending',
-            'metode_pembayaran' => 'Transfer bank',
-            'referensi_pembayaran' => null,
-        ]);
+        $transaksi = $this->transaksiService->createBooking($user, $car, $validated);
 
         return redirect()->route('orders.payment', $transaksi->id_transaksi)
-            ->with('success', 'Pesanan ' . $kodeBooking . ' berhasil dibuat! Silakan selesaikan pembayaran.');
+            ->with('success', 'Pesanan '.$transaksi->kode_booking.' berhasil dibuat! Silakan selesaikan pembayaran.');
     }
 }

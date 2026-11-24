@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class AuthController extends Controller
@@ -34,8 +35,8 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::user();
         $defaultDestination = match ($user->role) {
-            'admin' => route('admin.dashboard'),
-            'kasir' => route('kasir.dashboard'),
+            'admin' => Route::has('admin.dashboard') ? route('admin.dashboard') : route('home'),
+            'kasir' => Route::has('kasir.dashboard') ? route('kasir.dashboard') : route('home'),
             default => route('home'),
         };
 
