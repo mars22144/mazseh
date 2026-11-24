@@ -33,7 +33,11 @@ class AuthController extends Controller
 
         /** @var User $user */
         $user = Auth::user();
-        $defaultDestination = $user->canAccessKasirPanel() ? route('kasir.dashboard') : route('home');
+        $defaultDestination = match ($user->role) {
+            'admin' => route('admin.dashboard'),
+            'kasir' => route('kasir.dashboard'),
+            default => route('home'),
+        };
 
         return redirect()->intended($defaultDestination)
             ->with('success', 'Selamat datang kembali, '.$user->name.'!');

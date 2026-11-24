@@ -1,4 +1,4 @@
-<x-layouts.kasir title="Ringkasan" heading="Ringkasan">
+<x-layouts.staff title="Ringkasan" heading="Ringkasan">
     @php
         $maxDailyIncome = max(1, $dailyIncome->max('total'));
         $formatRupiah = fn (float $amount): string => 'Rp' . number_format($amount, 0, ',', '.');
@@ -159,4 +159,4 @@
             </table>
         </div>
     </section>
-</x-layouts.kasir>
+</x-layouts.staff>

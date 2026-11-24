@@ -1,4 +1,4 @@
-<x-layouts.kasir :title="'Pembayaran ' . $order->kode_booking" heading="Detail pembayaran">
+<x-layouts.staff :title="'Pembayaran ' . $order->kode_booking" heading="Detail pembayaran">
     @php
         $car = $order->mobil;
         $customer = $order->user;
@@ -254,4 +254,4 @@
         </script>
         @endpush
     @endif
-</x-layouts.kasir>
+</x-layouts.staff>

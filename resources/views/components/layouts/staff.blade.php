@@ -4,6 +4,11 @@
     /** @var \App\Models\User $staff */
     $staff = Auth::user();
     $awaitingVerificationCount = \App\Models\Pembayaran::awaitingVerification()->count();
+    $isAdminArea = request()->routeIs('admin.*');
+    $panelName = $isAdminArea ? 'Admin' : 'Kasir';
+    $pendingDocumentCount = $staff->hasRole('admin')
+        ? \App\Models\DocumentPelanggan::where('status_verifikasi', 'menunggu_validasi')->count()
+        : 0;
 @endphp
 
 <!doctype html>
@@ -13,7 +18,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0f172a">
     <meta name="robots" content="noindex, nofollow">
-    <title>{{ $title }} | Kasir MAZSEH</title>
+    <title>{{ $title }} | {{ $panelName }} MAZSEH</title>
 
     <link rel="preload" href="{{ asset('assets/inter-latin.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ asset('css/mazseh.css') }}">
@@ -23,16 +28,33 @@
     <a class="skip-link" href="#main">Lewati ke konten utama</a>
 
     <div class="workspace">
-        <aside class="sidebar" id="kasir-sidebar" aria-label="Navigasi panel kasir">
-            <a class="brand" href="{{ route('kasir.dashboard') }}">
+        <aside class="sidebar" id="kasir-sidebar" aria-label="Navigasi panel staf">
+            <a class="brand" href="{{ route($isAdminArea ? 'admin.dashboard' : 'kasir.dashboard') }}">
                 <div>
                     <span class="brand-name">MAZ<span>SEH</span></span>
-                    <span class="brand-caption">PANEL KASIR</span>
+                    <span class="brand-caption">PANEL {{ strtoupper($panelName) }}</span>
                 </div>
             </a>
 
             <nav class="sidebar-nav">
-                <span class="workspace-label">OPERASIONAL</span>
+                @if($staff->hasRole('admin'))
+                    <span class="workspace-label">ADMIN</span>
+                    @foreach([
+                        ['admin.dashboard', 'admin.dashboard', 'chart', 'Ikhtisar', 0],
+                        ['admin.cars.index', 'admin.cars.*', 'car', 'Armada', 0],
+                        ['admin.users.index', 'admin.users.*', 'users', 'Pengguna', $pendingDocumentCount],
+                    ] as [$routeName, $pattern, $icon, $label, $count])
+                        <a href="{{ route($routeName) }}" class="sidebar-link {{ request()->routeIs($pattern) ? 'active' : '' }}" @if(request()->routeIs($pattern)) aria-current="page" @endif>
+                            <x-icon :name="$icon" />
+                            <span>{{ $label }}</span>
+                            @if($count > 0)
+                                <span class="nav-count" aria-label="{{ $count }} dokumen menunggu verifikasi">{{ $count }}</span>
+                            @endif
+                        </a>
+                    @endforeach
+                @endif
+
+                <span class="workspace-label">KASIR</span>
                 <a href="{{ route('kasir.dashboard') }}" class="sidebar-link {{ request()->routeIs('kasir.dashboard') ? 'active' : '' }}" @if(request()->routeIs('kasir.dashboard')) aria-current="page" @endif>
                     <x-icon name="dashboard" />
                     <span>Ringkasan</span>
@@ -71,10 +93,10 @@
         <div class="workspace-main">
             <header class="workspace-header">
                 <div class="workspace-header-title">
-                    <button type="button" class="icon-btn mobile-sidebar-toggle" id="kasir-sidebar-toggle" aria-label="Buka menu panel kasir" aria-controls="kasir-sidebar" aria-expanded="false">
+                    <button type="button" class="icon-btn mobile-sidebar-toggle" id="kasir-sidebar-toggle" aria-label="Buka menu panel staf" aria-controls="kasir-sidebar" aria-expanded="false">
                         <x-icon name="menu" />
                     </button>
-                    <span>Kasir</span>
+                    <span>{{ $panelName }}</span>
                     <x-icon name="chevron" style="--od-icon-size:14px;" />
                     <strong style="color:var(--ink);">{{ $heading }}</strong>
                 </div>
@@ -100,7 +122,7 @@
 
                 {{ $slot }}
 
-                <p class="workspace-footer">&copy; {{ date('Y') }} MAZSEH &bull; Panel kasir internal. Setiap verifikasi tercatat atas nama Anda.</p>
+                <p class="workspace-footer">&copy; {{ date('Y') }} MAZSEH &bull; Panel staf internal. Setiap perubahan tercatat atas nama Anda.</p>
             </main>
         </div>
     </div>
