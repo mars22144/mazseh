@@ -1,4 +1,4 @@
-<x-layouts.kasir title="Pembayaran" heading="Pembayaran">
+<x-layouts.staff title="Pembayaran" heading="Pembayaran">
     <div class="page-title">
         <div>
             <h1>Pembayaran</h1>
@@ -146,4 +146,4 @@
             @endif
         </div>
     </section>
-</x-layouts.kasir>
+</x-layouts.staff>

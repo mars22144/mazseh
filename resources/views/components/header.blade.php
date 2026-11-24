@@ -13,7 +13,9 @@
             <a href="{{ route('about') }}" class="nav-link {{ request()->routeIs('about') ? 'active' : '' }}">Tentang Kami</a>
             <a href="{{ route('contact') }}" class="nav-link {{ request()->routeIs('contact') ? 'active' : '' }}">Kontak</a>
             @auth
-                @if(Auth::user()->canAccessKasirPanel())
+                @if(Auth::user()->hasRole('admin'))
+                    <a href="{{ route('admin.dashboard') }}" class="nav-link">Panel Admin</a>
+                @elseif(Auth::user()->canAccessKasirPanel())
                     <a href="{{ route('kasir.dashboard') }}" class="nav-link">Panel Kasir</a>
                 @else
                     <a href="{{ route('orders.index') }}" class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}">Pesanan Saya</a>

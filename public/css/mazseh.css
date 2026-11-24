@@ -216,3 +216,5 @@ dialog{max-width:560px;width:calc(100% - 32px);border:1px solid var(--line);padd
 .table-panel td small.nowrap{white-space:nowrap}
 .table-panel td .badge+small{margin-top:6px}
 .table-scroll{position:relative}
+@media(max-width:1279px){.admin-grid{grid-template-columns:1fr}}
+a.fleet-summary{color:var(--ink)}

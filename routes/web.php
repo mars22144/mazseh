@@ -4,6 +4,9 @@ use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\Admin\CarController as AdminCarController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Kasir\DashboardController as KasirDashboardController;
 use App\Http\Controllers\Kasir\PaymentController as KasirPaymentController;
@@ -65,6 +68,19 @@ Route::middleware('auth')->group(function () {
     // Customer Profile & Document Verification
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
+
+// Admin Panel
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/armada', [AdminCarController::class, 'index'])->name('cars.index');
+    Route::get('/armada/baru', [AdminCarController::class, 'create'])->name('cars.create');
+    Route::post('/armada', [AdminCarController::class, 'store'])->name('cars.store');
+    Route::get('/armada/{id}/ubah', [AdminCarController::class, 'edit'])->whereNumber('id')->name('cars.edit');
+    Route::put('/armada/{id}', [AdminCarController::class, 'update'])->whereNumber('id')->name('cars.update');
+    Route::get('/pengguna', [AdminUserController::class, 'index'])->name('users.index');
+    Route::patch('/pengguna/{id}/peran', [AdminUserController::class, 'updateRole'])->whereNumber('id')->name('users.role');
+    Route::patch('/pengguna/{id}/dokumen', [AdminUserController::class, 'verifyDocument'])->whereNumber('id')->name('users.document');
 });
 
 // Kasir Panel (kasir & admin)
