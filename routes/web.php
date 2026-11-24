@@ -1,18 +1,20 @@
 <?php
 
+use App\Http\Controllers\Admin\CarController as AdminCarController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
-use App\Http\Controllers\Admin\CarController as AdminCarController;
-use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Kasir\DashboardController as KasirDashboardController;
 use App\Http\Controllers\Kasir\PaymentController as KasirPaymentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SecureFileController;
+use App\Http\Controllers\StaffSettingsController;
 use Illuminate\Support\Facades\Route;
 
 // Public Pages
@@ -52,22 +54,39 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
-    // Customer Checkout Flow
-    Route::get('/checkout/{slug}', [CheckoutController::class, 'create'])->name('checkout.create');
-    Route::post('/checkout/{slug}', [CheckoutController::class, 'store'])->name('checkout.store');
+    // Alur pemesanan khusus akun pelanggan (akun staf dikembalikan ke panelnya)
+    Route::middleware('customer')->group(function () {
+        // Customer Checkout Flow
+        Route::get('/checkout/{slug}', [CheckoutController::class, 'create'])->name('checkout.create');
+        Route::post('/checkout/{slug}', [CheckoutController::class, 'store'])->name('checkout.store');
 
-    // Customer Orders & Payment
-    Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
-    Route::get('/orders/{id}', [OrderController::class, 'show'])->name('orders.show');
-    Route::get('/orders/{id}/payment', [OrderController::class, 'payment'])->name('orders.payment');
-    Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->name('orders.payment.submit');
-    Route::get('/orders/{id}/confirmed', [OrderController::class, 'confirmed'])->name('orders.confirmed');
-    Route::get('/orders/{id}/receipt', [OrderController::class, 'receipt'])->name('orders.receipt');
-    Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+        // Customer Orders & Payment
+        Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
+        Route::get('/orders/{id}', [OrderController::class, 'show'])->name('orders.show');
+        Route::get('/orders/{id}/payment', [OrderController::class, 'payment'])->name('orders.payment');
+        Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->name('orders.payment.submit');
+        Route::get('/orders/{id}/confirmed', [OrderController::class, 'confirmed'])->name('orders.confirmed');
+        Route::get('/orders/{id}/receipt', [OrderController::class, 'receipt'])->name('orders.receipt');
+        Route::post('/orders/{id}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
 
-    // Customer Profile & Document Verification
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+        // Customer Profile & Document Verification
+        Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+        Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    });
+
+    // Berkas pribadi (KTP/SIM & bukti bayar) hanya untuk pemilik atau staf
+    Route::get('/berkas/dokumen/{userId}/{type}', [SecureFileController::class, 'document'])
+        ->whereNumber('userId')->whereIn('type', ['ktp', 'sim'])->name('files.document');
+    Route::get('/berkas/pembayaran/{paymentId}', [SecureFileController::class, 'paymentProof'])
+        ->whereNumber('paymentId')->name('files.payment');
+});
+
+// Pengaturan akun staf (kasir & admin)
+Route::middleware(['auth', 'role:kasir,admin'])->prefix('pengaturan')->name('staff.settings.')->group(function () {
+    Route::get('/', [StaffSettingsController::class, 'edit'])->name('edit');
+    Route::put('/profil', [StaffSettingsController::class, 'updateProfile'])->name('profile');
+    Route::put('/kata-sandi', [StaffSettingsController::class, 'updatePassword'])->middleware('throttle:6,1')->name('password');
+    Route::delete('/sesi-lain', [StaffSettingsController::class, 'logoutOtherSessions'])->middleware('throttle:6,1')->name('sessions');
 });
 
 // Admin Panel

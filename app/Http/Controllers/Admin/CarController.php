@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\KatalogMobil;
 use App\Models\KategoriMobil;
+use App\Models\LogActivity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -71,6 +72,7 @@ class CarController extends Controller
         $this->fillCar($car, $request);
         $car->slug = $this->uniqueSlug($car->merk_model);
         $car->save();
+        LogActivity::record('katalog_mobil', 'INSERT', "Menambah unit {$car->merk_model} ({$car->plat_nomor}).");
 
         return redirect()->route('admin.cars.index')->with('success', "Unit {$car->merk_model} berhasil ditambahkan.");
     }
@@ -90,7 +92,9 @@ class CarController extends Controller
     {
         $car = KatalogMobil::findOrFail($id);
         $this->fillCar($car, $request);
+        $changedFields = implode(', ', array_keys($car->getDirty())) ?: 'tidak ada';
         $car->save();
+        LogActivity::record('katalog_mobil', 'UPDATE', "Mengubah unit {$car->merk_model} ({$car->plat_nomor}); kolom: {$changedFields}.");
 
         return redirect()->route('admin.cars.index')->with('success', "Unit {$car->merk_model} berhasil diperbarui.");
     }

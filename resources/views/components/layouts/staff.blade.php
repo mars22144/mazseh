@@ -4,7 +4,7 @@
     /** @var \App\Models\User $staff */
     $staff = Auth::user();
     $awaitingVerificationCount = \App\Models\Pembayaran::awaitingVerification()->count();
-    $isAdminArea = request()->routeIs('admin.*');
+    $isAdminArea = request()->routeIs('admin.*') || (request()->routeIs('staff.*') && $staff->hasRole('admin'));
     $panelName = $isAdminArea ? 'Admin' : 'Kasir';
     $pendingDocumentCount = $staff->hasRole('admin')
         ? \App\Models\DocumentPelanggan::where('status_verifikasi', 'menunggu_validasi')->count()
@@ -67,10 +67,10 @@
                     @endif
                 </a>
 
-                <span class="workspace-label">SITUS</span>
-                <a href="{{ route('home') }}" class="sidebar-link">
-                    <x-icon name="car" />
-                    <span>Situs pelanggan</span>
+                <span class="workspace-label">AKUN</span>
+                <a href="{{ route('staff.settings.edit') }}" class="sidebar-link {{ request()->routeIs('staff.settings.*') ? 'active' : '' }}" @if(request()->routeIs('staff.settings.*')) aria-current="page" @endif>
+                    <x-icon name="gear" />
+                    <span>Pengaturan</span>
                 </a>
             </nav>
 

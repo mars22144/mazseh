@@ -136,7 +136,12 @@
                 </div>
 
                 <div style="margin-top:20px;">
-                    @if($isAvailable && !$isMaintenance)
+                    @if(Auth::user()?->canAccessKasirPanel())
+                        <div class="notice">
+                            <x-icon name="info" />
+                            <span>Anda masuk sebagai staf. Pemesanan hanya dapat dilakukan dengan akun pelanggan.</span>
+                        </div>
+                    @elseif($isAvailable && !$isMaintenance)
                         <a href="{{ route('checkout.create', ['slug' => $car->slug, 'start' => $start, 'end' => $end]) }}" class="btn btn-primary wfull" style="gap:8px;">
                             <span>Sewa Mobil Ini</span>
                             <x-icon name="arrow" />

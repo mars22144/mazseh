@@ -38,8 +38,8 @@
                 </div>
 
                 @if($payment->bukti_bayar)
-                    <a href="{{ $payment->bukti_bayar }}" target="_blank" rel="noopener" class="proof-preview">
-                        <img src="{{ $payment->bukti_bayar }}" alt="Bukti pembayaran {{ $order->kode_booking }}">
+                    <a href="{{ route('files.payment', $payment->id_pembayaran) }}" target="_blank" rel="noopener" class="proof-preview">
+                        <img src="{{ route('files.payment', $payment->id_pembayaran) }}" alt="Bukti pembayaran {{ $order->kode_booking }}">
                         <span class="text-link"><span>Buka ukuran penuh</span><x-icon name="arrow" /></span>
                     </a>
                 @else
