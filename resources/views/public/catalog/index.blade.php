@@ -4,7 +4,7 @@
             <div class="breadcrumbs">
                 <a href="{{ route('home') }}">Beranda</a>
                 <x-icon name="chevron" />
-                <span>Pilihan mobil, mulai perjalanan.</span>
+                <span>Sewa Mobil</span>
             </div>
             <div class="page-title">
                 <h1>Pilih mobil, mulai perjalanan.</h1>
@@ -15,8 +15,8 @@
         <div class="catalog-layout">
             <!-- Filter Sidebar -->
             <aside class="panel filter-panel">
-                <div class="od-row" style="justify-content:space-between; margin-bottom:16px;">
-                    <h3>Filter pencarian</h3>
+                <div class="filter-head">
+                    <h3>Filter</h3>
                     <a href="{{ route('catalog.index') }}" class="text-link" style="min-height:auto;">Reset</a>
                 </div>
 

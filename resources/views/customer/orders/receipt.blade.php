@@ -1,7 +1,7 @@
 <x-layouts.app :title="'Kuitansi Pembayaran ' . $order->kode_booking . ' | MAZSEH'">
     @php
         $car = $order->mobil;
-        $paid = $order->pembayaran ? (float) $order->pembayaran->jumlah_bayar : 0;
+        $paid = $order->pembayaran?->amount_received ?? 0;
         $total = (float) $order->total_harga;
         $due = max(0, $total - $paid);
     @endphp

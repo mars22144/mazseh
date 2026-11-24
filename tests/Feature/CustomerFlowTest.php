@@ -5,10 +5,13 @@ namespace Tests\Feature;
 use App\Models\KatalogMobil;
 use App\Models\Transaksi;
 use App\Models\User;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class CustomerFlowTest extends TestCase
 {
+    use DatabaseTransactions;
+
     /**
      * Pastikan halaman login dan registrasi dapat diakses tamu.
      */
@@ -78,17 +81,16 @@ class CustomerFlowTest extends TestCase
 
         $submitPay->assertRedirect(route('orders.confirmed', $transaksi->id_transaksi));
         $transaksi->refresh();
-        $this->assertEquals('dikonfirmasi', $transaksi->status_pesanan);
-        $this->assertEquals('lunas', $transaksi->pembayaran->status_pembayaran);
+        $this->assertEquals('menunggu_pembayaran', $transaksi->status_pesanan);
+        $this->assertTrue($transaksi->pembayaran->isAwaitingVerification());
 
-        // 5. Akses Halaman Konfirmasi & Cetak Kuitansi
+        // 5. Akses Halaman Konfirmasi; kuitansi baru tersedia setelah kasir memverifikasi
         $this->actingAs($user)->get('/orders/' . $transaksi->id_transaksi . '/confirmed')
             ->assertStatus(200)
-            ->assertSee('Pesanan Anda Berhasil Diproses!');
+            ->assertSee('Konfirmasi Pembayaran Terkirim!');
 
         $this->actingAs($user)->get('/orders/' . $transaksi->id_transaksi . '/receipt')
-            ->assertStatus(200)
-            ->assertSee('Kuitansi Resmi Pembayaran');
+            ->assertRedirect(route('orders.show', $transaksi->id_transaksi));
 
         // 6. Akses Halaman Profil & Update
         $this->actingAs($user)->get('/profile')

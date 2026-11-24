@@ -235,6 +235,7 @@ class DatabaseSeeder extends Seeder
                     'status_pembayaran' => 'pending',
                     'metode_pembayaran' => 'Transfer bank',
                     'referensi_pembayaran' => 'TRX-SAMPLE-001',
+                    'waktu_bayar' => now()->subHours(2),
                 ]
             );
         }
@@ -269,6 +270,7 @@ class DatabaseSeeder extends Seeder
                     'metode_pembayaran' => 'QRIS',
                     'referensi_pembayaran' => 'QRIS-MZS-88992',
                     'waktu_bayar' => now()->subDays(3)->addMinutes(15),
+                    'waktu_verifikasi' => now()->subDays(3)->addMinutes(40),
                 ]
             );
         }

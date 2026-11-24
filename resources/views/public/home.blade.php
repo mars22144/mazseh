@@ -62,6 +62,7 @@
                     </div>
                     <div>
                         <div class="console-label">
+                            <x-icon name="calendar" />
                             <label for="home-end">Tanggal kembali</label>
                         </div>
                         <input id="home-end" name="end" type="date" value="{{ request('end', now()->addDays(3)->format('Y-m-d')) }}" min="{{ now()->addDay()->format('Y-m-d') }}" required>
@@ -116,7 +117,6 @@
 
             <div class="category-tabs" aria-label="Kategori mobil">
                 <a href="{{ route('home') }}" class="chip {{ !request('category') || request('category') === 'Semua' ? 'active' : '' }}">
-                    <x-icon name="car" />
                     <span>Semua mobil</span>
                 </a>
                 @foreach($categories as $cat)
@@ -139,34 +139,37 @@
             </div>
         </section>
 
-        <!-- How It Works Section -->
-        <section class="how-section section">
-            <div class="container how-layout">
+    </div>
+
+    <!-- How It Works Section -->
+    <section class="how-section section">
+        <div class="container how-layout">
+            <div>
+                <div class="eyebrow">Sederhana dari awal</div>
+                <h2>Rencana jalan?<br>Mulai dari sini.</h2>
+                <p class="small">Atur perjalanan tanpa melewatkan detail penting dengan 3 langkah mudah.</p>
+            </div>
+            <div class="steps-grid">
                 <div>
-                    <div class="eyebrow">Sederhana dari awal</div>
-                    <h2>Rencana jalan?<br>Mulai dari sini.</h2>
-                    <p class="small">Atur perjalanan tanpa melewatkan detail penting dengan 3 langkah mudah.</p>
+                    <span class="step-number">01 / PILIH</span>
+                    <h3>Temukan mobil Anda</h3>
+                    <p>Tentukan lokasi, tanggal, dan kendaraan yang sesuai dengan jumlah penumpang dan rute perjalanan.</p>
                 </div>
-                <div class="steps-grid">
-                    <div>
-                        <span class="step-number">01 / PILIH</span>
-                        <h3>Temukan mobil Anda</h3>
-                        <p>Tentukan lokasi, tanggal, dan kendaraan yang sesuai dengan jumlah penumpang dan rute perjalanan.</p>
-                    </div>
-                    <div>
-                        <span class="step-number">02 / PESAN</span>
-                        <h3>Lengkapi detail sewa</h3>
-                        <p>Tentukan opsi pengemudi, unggah dokumen identitas KTP & SIM, dan tinjau rincian biaya.</p>
-                    </div>
-                    <div>
-                        <span class="step-number">03 / BERANGKAT</span>
-                        <h3>Konfirmasi & ambil mobil</h3>
-                        <p>Selesaikan pembayaran aman, lakukan serah-terima unit di pool atau antar ke lokasi Anda, lalu nikmati perjalanan.</p>
-                    </div>
+                <div>
+                    <span class="step-number">02 / PESAN</span>
+                    <h3>Lengkapi detail sewa</h3>
+                    <p>Tentukan opsi pengemudi, unggah dokumen identitas KTP & SIM, dan tinjau rincian biaya.</p>
+                </div>
+                <div>
+                    <span class="step-number">03 / BERANGKAT</span>
+                    <h3>Konfirmasi & ambil mobil</h3>
+                    <p>Selesaikan pembayaran aman, lakukan serah-terima unit di pool atau antar ke lokasi Anda, lalu nikmati perjalanan.</p>
                 </div>
             </div>
-        </section>
+        </div>
+    </section>
 
+    <div class="container">
         <!-- Contact Banner -->
         <div class="section">
             <div class="contact-banner">

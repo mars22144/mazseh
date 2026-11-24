@@ -32,6 +32,44 @@ class User extends Authenticatable
     }
 
     /**
+     * Cek apakah pengguna memiliki salah satu peran yang diberikan.
+     */
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role, $roles, true);
+    }
+
+    /**
+     * Cek apakah pengguna merupakan staf yang boleh membuka panel kasir.
+     */
+    public function canAccessKasirPanel(): bool
+    {
+        return $this->hasRole('kasir', 'admin');
+    }
+
+    /**
+     * Inisial nama untuk avatar (maksimal dua huruf).
+     */
+    public function getInitialsAttribute(): string
+    {
+        $words = preg_split('/\s+/', trim((string) $this->name)) ?: [];
+
+        return strtoupper(collect($words)->take(2)->map(fn (string $word): string => mb_substr($word, 0, 1))->implode(''));
+    }
+
+    /**
+     * Label peran yang ramah pengguna.
+     */
+    public function getRoleLabelAttribute(): string
+    {
+        return match ($this->role) {
+            'admin' => 'Admin',
+            'kasir' => 'Kasir',
+            default => 'Pelanggan',
+        };
+    }
+
+    /**
      * Relasi ke dokumen pelanggan (KTP & SIM).
      */
     public function dokumenPelanggan(): HasOne

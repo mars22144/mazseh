@@ -7,6 +7,7 @@ use App\Models\Transaksi;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class OrderController extends Controller
@@ -72,8 +73,18 @@ class OrderController extends Controller
             ->where('id_transaksi', $id)
             ->firstOrFail();
 
+        if ($transaksi->status_pesanan !== 'menunggu_pembayaran') {
+            return redirect()->route('orders.show', $transaksi->id_transaksi)
+                ->with('error', 'Pesanan ini tidak lagi menunggu pembayaran.');
+        }
+
+        if ($transaksi->pembayaran?->isAwaitingVerification()) {
+            return redirect()->route('orders.payment', $transaksi->id_transaksi)
+                ->with('error', 'Konfirmasi pembayaran Anda sedang diverifikasi kasir.');
+        }
+
         $validated = $request->validate([
-            'metode_pembayaran' => ['required', 'string'],
+            'metode_pembayaran' => ['required', Rule::in(Pembayaran::PAYMENT_METHODS)],
             'referensi_pembayaran' => ['nullable', 'string', 'max:100'],
             'bukti_bayar' => ['nullable', 'image', 'max:3072'],
         ]);
@@ -91,16 +102,15 @@ class OrderController extends Controller
             $pembayaran->bukti_bayar = $buktiPath;
         }
         $pembayaran->jumlah_bayar = $transaksi->total_harga;
-        $pembayaran->status_pembayaran = 'lunas';
+        $pembayaran->status_pembayaran = 'pending';
         $pembayaran->waktu_bayar = now();
+        $pembayaran->kasir_id = null;
+        $pembayaran->waktu_verifikasi = null;
+        $pembayaran->catatan_kasir = null;
         $pembayaran->save();
 
-        $transaksi->update([
-            'status_pesanan' => 'dikonfirmasi',
-        ]);
-
         return redirect()->route('orders.confirmed', $transaksi->id_transaksi)
-            ->with('success', 'Konfirmasi pembayaran berhasil dicatat! Status pesanan kini telah aktif.');
+            ->with('success', 'Konfirmasi pembayaran terkirim. Kasir MAZSEH akan memverifikasinya segera.');
     }
 
     /**
@@ -127,6 +137,11 @@ class OrderController extends Controller
             ->where('user_id', $user->id)
             ->where('id_transaksi', $id)
             ->firstOrFail();
+
+        if (! $order->pembayaran?->isPaid()) {
+            return redirect()->route('orders.show', $order->id_transaksi)
+                ->with('error', 'Kuitansi tersedia setelah pembayaran diverifikasi kasir.');
+        }
 
         return view('customer.orders.receipt', compact('order'));
     }

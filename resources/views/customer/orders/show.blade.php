@@ -2,8 +2,11 @@
     @php
         $car = $order->mobil;
         $totalAmount = (float) $order->total_harga;
-        $paidAmount = $order->pembayaran ? (float) $order->pembayaran->jumlah_bayar : 0;
-        $isPaid = $order->pembayaran && $order->pembayaran->status_pembayaran === 'lunas';
+        $payment = $order->pembayaran;
+        $paidAmount = $payment?->amount_received ?? 0;
+        $isPaid = (bool) $payment?->isPaid();
+        $isAwaitingVerification = (bool) $payment?->isAwaitingVerification();
+        $isRejected = (bool) $payment?->isRejected();
     @endphp
 
     <div class="container">
@@ -103,13 +106,17 @@
                         </li>
                         <li>
                             <span class="timeline-icon {{ $isPaid ? 'done' : '' }}">
-                                <x-icon name="{{ $isPaid ? 'check' : 'clock' }}" />
+                                <x-icon name="{{ $isPaid ? 'check' : ($isRejected ? 'info' : 'clock') }}" />
                             </span>
                             <div>
-                                <strong>Pembayaran ({{ $transaksi->pembayaran->status_label ?? 'Pending' }})</strong>
+                                <strong>Pembayaran ({{ $payment->status_label ?? 'Belum Dibayar' }})</strong>
                                 <p>
                                     @if($isPaid)
-                                        Lunas via {{ $order->pembayaran->metode_pembayaran }} pada {{ $order->pembayaran->waktu_bayar ? $order->pembayaran->waktu_bayar->translatedFormat('d M Y, H:i') : '-' }} WIB
+                                        Lunas via {{ $payment->metode_pembayaran }}, diverifikasi {{ ($payment->waktu_verifikasi ?? $payment->waktu_bayar)?->translatedFormat('d M Y, H:i') ?? '-' }} WIB
+                                    @elseif($isAwaitingVerification)
+                                        Konfirmasi via {{ $payment->metode_pembayaran }} terkirim {{ $payment->waktu_bayar->translatedFormat('d M Y, H:i') }} WIB, menunggu verifikasi kasir
+                                    @elseif($isRejected)
+                                        Ditolak kasir: {{ $payment->catatan_kasir ?? 'bukti pembayaran tidak sesuai' }}. Silakan kirim ulang.
                                     @else
                                         Menunggu penyelesaian pembayaran oleh penyewa
                                     @endif
@@ -156,12 +163,19 @@
                 <hr class="rule">
 
                 @if($order->status_pesanan === 'menunggu_pembayaran')
-                    <a href="{{ route('orders.payment', $order->id_transaksi) }}" class="btn btn-primary wfull" style="margin-bottom:12px;">Lanjutkan Pembayaran</a>
+                    @if($isAwaitingVerification)
+                        <div class="notice" style="margin-bottom:12px;">
+                            <x-icon name="clock" />
+                            <span>Konfirmasi pembayaran Anda sedang diverifikasi kasir MAZSEH.</span>
+                        </div>
+                    @else
+                        <a href="{{ route('orders.payment', $order->id_transaksi) }}" class="btn btn-primary wfull" style="margin-bottom:12px;">{{ $isRejected ? 'Kirim Ulang Pembayaran' : 'Lanjutkan Pembayaran' }}</a>
+                    @endif
                     <button type="button" class="btn btn-outline wfull" id="btn-open-cancel" style="color:var(--red);">Batalkan Pesanan</button>
                 @endif
 
                 @if($isPaid)
-                    <a href="{{ route('orders.receipt', $order->id_transaksi) }}" class="btn btn-outline wfull spaced" style="gap:8px;">
+                    <a href="{{ route('orders.receipt', $order->id_transaksi) }}" class="btn btn-outline wfull">
                         <x-icon name="receipt" />
                         <span>Lihat Kuitansi Resmi</span>
                     </a>

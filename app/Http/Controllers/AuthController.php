@@ -31,8 +31,12 @@ class AuthController extends Controller
         // Cegah Session Fixation dengan meregenerasi ID sesi baru
         $request->session()->regenerate();
 
-        return redirect()->intended(route('home'))
-            ->with('success', 'Selamat datang kembali, '.Auth::user()->name.'!');
+        /** @var User $user */
+        $user = Auth::user();
+        $defaultDestination = $user->canAccessKasirPanel() ? route('kasir.dashboard') : route('home');
+
+        return redirect()->intended($defaultDestination)
+            ->with('success', 'Selamat datang kembali, '.$user->name.'!');
     }
 
     /**
