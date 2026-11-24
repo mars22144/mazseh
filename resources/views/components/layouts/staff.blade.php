@@ -72,12 +72,6 @@
                     <x-icon name="gear" />
                     <span>Pengaturan</span>
                 </a>
-
-                <span class="workspace-label">SITUS</span>
-                <a href="{{ route('home') }}" class="sidebar-link">
-                    <x-icon name="car" />
-                    <span>Situs pelanggan</span>
-                </a>
             </nav>
 
             <div class="sidebar-account">

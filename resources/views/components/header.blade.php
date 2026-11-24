@@ -27,7 +27,7 @@
 
         <div class="header-actions">
             @auth
-                <a href="{{ route('profile.edit') }}" class="btn btn-outline" style="gap:8px;">
+                <a href="{{ Auth::user()->canAccessKasirPanel() ? route('staff.settings.edit') : route('profile.edit') }}" class="btn btn-outline" style="gap:8px;">
                     <x-icon name="user" />
                     <span>{{ Str::words(Auth::user()->name, 1, '') }}</span>
                 </a>

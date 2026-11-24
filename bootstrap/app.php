@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureCustomerAccount;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
@@ -16,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            'customer' => EnsureCustomerAccount::class,
         ]);
         $middleware->web(append: [SecurityHeaders::class]);
     })

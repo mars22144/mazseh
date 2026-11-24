@@ -146,4 +146,25 @@ class SecurityHardeningTest extends TestCase
         $this->assertSame('users', $log->tabel_terdampak);
         $this->assertStringContainsString($customer->email, $log->keterangan);
     }
+
+    /**
+     * Akun staf tidak boleh masuk ke alur pemesanan pelanggan; pelanggan tetap bisa.
+     */
+    public function test_staff_accounts_cannot_use_customer_ordering_flow(): void
+    {
+        $panels = ['admin' => 'admin.dashboard', 'kasir' => 'kasir.dashboard'];
+
+        foreach ($panels as $role => $panelRoute) {
+            $staff = User::factory()->create(['role' => $role]);
+
+            foreach (['/checkout/avanza', '/orders', '/profile'] as $path) {
+                $this->actingAs($staff)->get($path)->assertRedirect(route($panelRoute));
+            }
+
+            $this->actingAs($staff)->post('/checkout/avanza', [])->assertRedirect(route($panelRoute));
+            $this->actingAs($staff)->get('/cars/avanza')->assertOk()->assertDontSee('Sewa Mobil Ini');
+        }
+
+        $this->actingAs(User::factory()->create(['role' => 'pelanggan']))->get('/orders')->assertOk();
+    }
 }
