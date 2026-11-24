@@ -13,7 +13,9 @@ class Transaksi extends Model
     use HasFactory;
 
     protected $table = 'transaksi';
+
     protected $primaryKey = 'id_transaksi';
+
     public $timestamps = false;
 
     protected $fillable = [
@@ -74,7 +76,7 @@ class Transaksi extends Model
      */
     public function getDurationDaysAttribute(): int
     {
-        if (!$this->tanggal_mulai || !$this->tanggal_selesai) {
+        if (! $this->tanggal_mulai || ! $this->tanggal_selesai) {
             return 1;
         }
 
@@ -90,7 +92,7 @@ class Transaksi extends Model
      */
     public function getFormattedTotalAttribute(): string
     {
-        return 'Rp' . number_format((float) $this->total_harga, 0, ',', '.');
+        return 'Rp'.number_format((float) $this->total_harga, 0, ',', '.');
     }
 
     /**
@@ -101,6 +103,8 @@ class Transaksi extends Model
         return match ($this->status_pesanan) {
             'menunggu_pembayaran' => 'Menunggu Pembayaran',
             'dikonfirmasi' => 'Dikonfirmasi',
+            'sedang_disewa' => 'Sedang Disewa',
+            'selesai' => 'Selesai',
             'dibatalkan' => 'Dibatalkan',
             default => ucfirst(str_replace('_', ' ', (string) $this->status_pesanan)),
         };
@@ -113,6 +117,8 @@ class Transaksi extends Model
     {
         return match ($this->status_pesanan) {
             'dikonfirmasi' => 'green',
+            'sedang_disewa' => 'blue',
+            'selesai' => 'green',
             'menunggu_pembayaran' => 'amber',
             'dibatalkan' => 'red',
             default => 'blue',

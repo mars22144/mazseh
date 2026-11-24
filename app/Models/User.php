@@ -48,6 +48,30 @@ class User extends Authenticatable
     }
 
     /**
+     * Cek apakah pengguna memiliki role admin.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
+     * Cek apakah pengguna memiliki role kasir.
+     */
+    public function isKasir(): bool
+    {
+        return $this->role === 'kasir';
+    }
+
+    /**
+     * Cek apakah pengguna memiliki role pelanggan.
+     */
+    public function isPelanggan(): bool
+    {
+        return $this->role === 'pelanggan';
+    }
+
+    /**
      * Inisial nama untuk avatar (maksimal dua huruf).
      */
     public function getInitialsAttribute(): string
@@ -91,5 +115,21 @@ class User extends Authenticatable
     public function sesiChatAi(): HasMany
     {
         return $this->hasMany(SesiChatAi::class, 'user_id', 'id');
+    }
+
+    /**
+     * Relasi ke daftar pembayaran yang divalidasi oleh staf kasir ini.
+     */
+    public function pembayaranDivalidasi(): HasMany
+    {
+        return $this->hasMany(Pembayaran::class, 'kasir_id', 'id');
+    }
+
+    /**
+     * Relasi ke catatan audit aktivitas milik pengguna ini.
+     */
+    public function logActivity(): HasMany
+    {
+        return $this->hasMany(LogActivity::class, 'user_id', 'id');
     }
 }

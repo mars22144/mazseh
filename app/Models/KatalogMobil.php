@@ -12,6 +12,7 @@ class KatalogMobil extends Model
     use HasFactory;
 
     protected $table = 'katalog_mobil';
+
     protected $primaryKey = 'id_mobil';
 
     protected $fillable = [
@@ -61,11 +62,19 @@ class KatalogMobil extends Model
     }
 
     /**
+     * Relasi ke riwayat pemeliharaan bengkel untuk mobil ini.
+     */
+    public function pemeliharaan(): HasMany
+    {
+        return $this->hasMany(Pemeliharaan::class, 'id_mobil', 'id_mobil');
+    }
+
+    /**
      * Format harga sewa ke representasi mata uang Rupiah.
      */
     public function getFormattedPriceAttribute(): string
     {
-        return 'Rp' . number_format((float) $this->harga_sewa, 0, ',', '.');
+        return 'Rp'.number_format((float) $this->harga_sewa, 0, ',', '.');
     }
 
     /**
@@ -73,21 +82,21 @@ class KatalogMobil extends Model
      */
     public function isAvailableForDates(string $start, string $end, ?int $excludeTransaksiId = null): bool
     {
-        if ($this->status_ketersediaan !== 'tersedia') {
+        if ($this->status_ketersediaan === 'maintenance') {
             return false;
         }
 
         $conflict = $this->transaksi()
-            ->whereNotIn('status_pesanan', ['dibatalkan'])
-            ->when($excludeTransaksiId, function ($query, $id) {
+            ->whereNotIn('status_pesanan', ['dibatalkan', 'selesai'])
+            ->when($excludeTransaksiId, function ($query, int $id): void {
                 $query->where('id_transaksi', '!=', $id);
             })
-            ->where(function ($query) use ($start, $end) {
+            ->where(function ($query) use ($start, $end): void {
                 $query->where('tanggal_mulai', '<', $end)
                     ->where('tanggal_selesai', '>', $start);
             })
             ->exists();
 
-        return !$conflict;
+        return ! $conflict;
     }
 }

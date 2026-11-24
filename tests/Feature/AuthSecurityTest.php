@@ -60,7 +60,7 @@ class AuthSecurityTest extends TestCase
      */
     public function test_pengguna_tidak_dapat_login_dengan_password_salah(): void
     {
-        User::create([
+        $user = User::create([
             'name' => 'Pengguna Salah Password',
             'email' => 'wrong_pass@mazseh.test',
             'password' => Hash::make('Rahasia123'),
@@ -75,6 +75,11 @@ class AuthSecurityTest extends TestCase
 
         $this->assertGuest();
         $response->assertSessionHasErrors('email');
+        $this->assertDatabaseHas('log_activity', [
+            'user_id' => $user->id,
+            'tabel_terdampak' => 'users',
+            'jenis_aksi' => 'LOGIN_FAILED',
+        ]);
     }
 
     /**
@@ -132,6 +137,10 @@ class AuthSecurityTest extends TestCase
 
         $this->assertGuest();
         $response->assertSessionHasErrors('email');
+        $this->assertDatabaseHas('log_activity', [
+            'tabel_terdampak' => 'users',
+            'jenis_aksi' => 'SQLI_ATTEMPT',
+        ]);
     }
 
     /**
@@ -319,6 +328,14 @@ class AuthSecurityTest extends TestCase
             'Alamat email atau kata sandi tidak cocok dengan data kami.',
             session('errors')->first('email')
         );
+        $this->assertDatabaseHas('log_activity', [
+            'tabel_terdampak' => 'users',
+            'jenis_aksi' => 'SQLI_ATTEMPT',
+        ]);
+        $this->assertDatabaseHas('log_activity', [
+            'tabel_terdampak' => 'users',
+            'jenis_aksi' => 'LOGIN_FAILED',
+        ]);
     }
 
     /**
