@@ -5,6 +5,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Kasir\DashboardController as KasirDashboardController;
+use App\Http\Controllers\Kasir\PaymentController as KasirPaymentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
@@ -63,4 +65,13 @@ Route::middleware('auth')->group(function () {
     // Customer Profile & Document Verification
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
+});
+
+// Kasir Panel (kasir & admin)
+Route::middleware(['auth', 'role:kasir,admin'])->prefix('kasir')->name('kasir.')->group(function () {
+    Route::get('/', [KasirDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/pembayaran', [KasirPaymentController::class, 'index'])->name('payments.index');
+    Route::get('/pembayaran/{id}', [KasirPaymentController::class, 'show'])->whereNumber('id')->name('payments.show');
+    Route::post('/pembayaran/{id}/terima', [KasirPaymentController::class, 'approve'])->whereNumber('id')->name('payments.approve');
+    Route::post('/pembayaran/{id}/tolak', [KasirPaymentController::class, 'reject'])->whereNumber('id')->name('payments.reject');
 });

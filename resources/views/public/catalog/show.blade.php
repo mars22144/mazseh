@@ -31,10 +31,14 @@
                 </div>
 
                 <div class="detail-caption">
-                    <div>
-                        <h2>{{ $car->merk_model }}</h2>
-                        <p class="small">{{ $car->kategori->nama_kategori ?? 'Armada' }} &bull; {{ $car->tahun }} &bull; {{ $car->kota }}</p>
-                    </div>
+                    <p class="small">{{ $car->kategori->nama_kategori ?? 'Armada' }} &bull; {{ $car->tahun }} &bull; {{ $car->kota }}</p>
+                    @if($isAvailable && !$isMaintenance)
+                        <span class="badge green"><x-icon name="check" /> Tersedia</span>
+                    @elseif($isMaintenance)
+                        <span class="badge amber"><x-icon name="wrench" /> Perawatan</span>
+                    @else
+                        <span class="badge amber"><x-icon name="clock" /> Cek jadwal</span>
+                    @endif
                 </div>
 
                 <div class="spec-grid">

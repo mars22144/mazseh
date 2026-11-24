@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -22,6 +23,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Seluruh antarmuka berbahasa Indonesia: nama hari & bulan pada tanggal ikut Bahasa Indonesia
+        Carbon::setLocale('id');
+
         // Lapis kedua login: batasi maksimal 20 percobaan per menit per IP
         // (lebih tinggi dari batas 5x per email+IP di LoginRequest agar pesan validasi lokal tetap muncul lebih dulu)
         RateLimiter::for('login-ip', function (Request $request): Limit {

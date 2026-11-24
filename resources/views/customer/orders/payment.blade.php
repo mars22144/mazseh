@@ -2,8 +2,12 @@
     @php
         $car = $transaksi->mobil;
         $totalAmount = (float) $transaksi->total_harga;
-        $paidAmount = $transaksi->pembayaran ? (float) $transaksi->pembayaran->jumlah_bayar : 0;
-        $isPaid = $transaksi->pembayaran && $transaksi->pembayaran->status_pembayaran === 'lunas';
+        $payment = $transaksi->pembayaran;
+        $paidAmount = $payment?->amount_received ?? 0;
+        $isPaid = (bool) $payment?->isPaid();
+        $isAwaitingVerification = (bool) $payment?->isAwaitingVerification();
+        $isRejected = (bool) $payment?->isRejected();
+        $isCancelled = $transaksi->status_pesanan === 'dibatalkan';
     @endphp
 
     <div class="container">
@@ -25,7 +29,7 @@
 
         <div class="two-col section-small">
             <div class="panel">
-                <h2 style="font-size:24px; margin-bottom:6px;">Pilih metode pembayaran</h2>
+                <h2 style="font-size:24px; margin-bottom:6px;">{{ ($isPaid || $isAwaitingVerification || $isCancelled) ? 'Status pembayaran' : 'Pilih metode pembayaran' }}</h2>
                 <p class="panel-subtitle">{{ $car->merk_model }} &bull; {{ $transaksi->tanggal_mulai->translatedFormat('d M Y') }} s/d {{ $transaksi->tanggal_selesai->translatedFormat('d M Y') }} ({{ $transaksi->duration_days }} hari)</p>
 
                 @if($isPaid)
@@ -33,11 +37,36 @@
                         <x-icon name="check" />
                         <span>Pembayaran untuk pesanan ini telah <strong>LUNAS</strong>. Silakan periksa detail pesanan atau cetak kuitansi resmi Anda.</span>
                     </div>
-                    <div style="margin-top:24px;">
+                    <div class="inline-actions" style="margin-top:24px;">
                         <a href="{{ route('orders.show', $transaksi->id_transaksi) }}" class="btn btn-primary">Lihat Detail Pesanan</a>
-                        <a href="{{ route('orders.receipt', $transaksi->id_transaksi) }}" class="btn btn-outline" style="margin-left:12px;">Cetak Kuitansi</a>
+                        <a href="{{ route('orders.receipt', $transaksi->id_transaksi) }}" class="btn btn-outline">
+                            <x-icon name="print" />
+                            <span>Cetak Kuitansi</span>
+                        </a>
+                    </div>
+                @elseif($isCancelled)
+                    <div class="notice error" style="margin-top:20px;">
+                        <x-icon name="info" />
+                        <span>Pesanan ini telah dibatalkan sehingga tidak dapat dibayar.</span>
+                    </div>
+                @elseif($isAwaitingVerification)
+                    <div class="notice" style="margin-top:20px;">
+                        <x-icon name="clock" />
+                        <span>Konfirmasi pembayaran via <strong>{{ $payment->metode_pembayaran }}</strong> terkirim pada {{ $payment->waktu_bayar->translatedFormat('d M Y, H:i') }} WIB dan sedang diverifikasi kasir MAZSEH. Status pesanan berubah otomatis setelah diverifikasi.</span>
+                    </div>
+                    <div class="inline-actions" style="margin-top:24px;">
+                        <a href="{{ route('orders.show', $transaksi->id_transaksi) }}" class="btn btn-outline">
+                            <x-icon name="back" />
+                            <span>Kembali ke Pesanan</span>
+                        </a>
                     </div>
                 @else
+                    @if($isRejected)
+                        <div class="notice error" style="margin-top:20px;">
+                            <x-icon name="info" />
+                            <span><strong>Pembayaran sebelumnya ditolak kasir.</strong> {{ $payment->catatan_kasir ?? 'Bukti pembayaran tidak sesuai.' }} Silakan kirim ulang konfirmasi di bawah.</span>
+                        </div>
+                    @endif
                     <form action="{{ route('orders.payment.submit', $transaksi->id_transaksi) }}" method="POST" enctype="multipart/form-data" style="margin-top:24px;">
                         @csrf
                         <div class="field">
@@ -75,8 +104,11 @@
                         </label>
 
                         <div class="button-row" style="margin-top:24px;">
-                            <a href="{{ route('orders.show', $transaksi->id_transaksi) }}" class="btn btn-outline">Kembali ke Pesanan</a>
-                            <button type="submit" class="btn btn-primary" style="padding-inline:24px;">Konfirmasi Pembayaran</button>
+                            <a href="{{ route('orders.show', $transaksi->id_transaksi) }}" class="btn btn-outline">
+                                <x-icon name="back" />
+                                <span>Kembali ke Pesanan</span>
+                            </a>
+                            <button type="submit" class="btn btn-primary" style="padding-inline:24px;">Kirim Konfirmasi Pembayaran</button>
                         </div>
                     </form>
                 @endif
@@ -98,10 +130,13 @@
                     <strong>Rp{{ number_format(max(0, $totalAmount - $paidAmount), 0, ',', '.') }}</strong>
                 </div>
 
-                <div class="spaced">
-                    <span class="badge {{ $transaksi->status_badge_class }}" style="display:block; text-align:center; padding:8px;">
-                        Status: {{ $transaksi->status_label }}
-                    </span>
+                <div class="summary-line">
+                    <span>Status pembayaran</span>
+                    <span class="badge {{ $payment->status_badge_class ?? 'amber' }}">{{ $payment->status_label ?? 'Belum Dibayar' }}</span>
+                </div>
+                <div class="summary-line">
+                    <span>Status pesanan</span>
+                    <span class="badge {{ $transaksi->status_badge_class }}">{{ $transaksi->status_label }}</span>
                 </div>
             </aside>
         </div>
@@ -112,9 +147,9 @@
         document.getElementById('metode_pembayaran')?.addEventListener('change', function() {
             const instr = document.getElementById('pay-instruction');
             if (this.value === 'QRIS') {
-                instr.innerHTML = 'Scan kode QRIS MAZSEH melalui aplikasi e-wallet atau mobile banking favorit Anda. Pembayaran akan terverifikasi secara otomatis.';
+                instr.innerHTML = 'Scan kode QRIS MAZSEH melalui aplikasi e-wallet atau mobile banking favorit Anda. Kirim konfirmasi setelah membayar, kasir MAZSEH akan memverifikasinya.';
             } else if (this.value === 'Tunai di kasir') {
-                instr.innerHTML = 'Silakan lakukan pembayaran tunai secara langsung di loket kasir pool MAZSEH saat pengambilan atau serah-terima unit.';
+                instr.innerHTML = 'Silakan lakukan pembayaran tunai secara langsung di loket kasir pool MAZSEH saat pengambilan atau serah-terima unit. Kirim konfirmasi ini agar kasir menyiapkan pesanan Anda.';
             } else {
                 instr.innerHTML = 'Silakan transfer ke rekening resmi MAZSEH:<br><strong>BCA: 800-992-1234</strong> a.n. <strong>PT MAZSEH RENTAL NUSANTARA</strong><br>Cantumkan kode booking <strong>{{ $transaksi->kode_booking }}</strong> pada berita transfer.';
             }

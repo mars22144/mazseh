@@ -28,7 +28,7 @@
             </a>
         </div>
 
-        <div class="order-grid section-small">
+        <div class="order-grid" style="padding-bottom:var(--s7);">
             @forelse($orders as $order)
                 <article class="order-card">
                     <div class="order-card-top">

@@ -264,7 +264,7 @@
                             document.getElementById('lat-display').textContent = lat;
                             document.getElementById('long-display').textContent = lng;
                             btnGps.disabled = false;
-                            btnGps.innerHTML = '<svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m5 12 4 4L19 6"/></svg> <span>Tersimpan</span>';
+                            btnGps.innerHTML = '<svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg><span>Lokasi tersimpan</span>';
                         },
                         function(err) {
                             btnGps.disabled = false;
