@@ -80,22 +80,32 @@ class TransaksiController extends Controller
         /** @var User $kasir */
         $kasir = $request->user();
 
-        $transaksi = DB::transaction(function () use ($validated, $kasir): Transaksi {
+        /** @var array{name: string, email: string, password: string}|null $walkInCredentials */
+        $walkInCredentials = null;
+
+        $transaksi = DB::transaction(function () use ($validated, $kasir, &$walkInCredentials): Transaksi {
             if (! empty($validated['user_id'])) {
                 $customer = User::findOrFail((int) $validated['user_id']);
             } else {
+                $temporaryPassword = Str::random(12);
+
                 $customer = User::firstOrCreate(
                     ['email' => strtolower((string) $validated['customer_email'])],
                     [
                         'name' => $validated['customer_name'],
                         'phone' => $validated['customer_phone'],
                         'sim_number' => $validated['sim_number'],
-                        'password' => Hash::make(Str::random(12)),
+                        'password' => Hash::make($temporaryPassword),
                     ]
                 );
 
                 if ($customer->wasRecentlyCreated) {
                     $customer->forceFill(['role' => 'pelanggan'])->save();
+                    $walkInCredentials = [
+                        'name' => $customer->name,
+                        'email' => $customer->email,
+                        'password' => $temporaryPassword,
+                    ];
                 }
             }
 
@@ -108,9 +118,15 @@ class TransaksiController extends Controller
             return $this->transaksiService->createBooking($customer, $car, $validated, $kasir->id);
         });
 
-        return redirect()
+        $redirect = redirect()
             ->route('kasir.transaksi.show', $transaksi->id_transaksi)
             ->with('success', 'Transaksi walk-in '.$transaksi->kode_booking.' berhasil dibuat.');
+
+        if ($walkInCredentials !== null) {
+            $redirect->with('walkin_credentials', $walkInCredentials);
+        }
+
+        return $redirect;
     }
 
     /**

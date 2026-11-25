@@ -10,6 +10,7 @@ use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -221,6 +222,25 @@ class KasirOperasionalTest extends TestCase
 
         $walkInOrder = Transaksi::with('pembayaran')->where('user_id', $createdCustomer->id)->firstOrFail();
         $response->assertRedirect(route('kasir.transaksi.show', $walkInOrder->id_transaksi));
+        $response->assertSessionHas('walkin_credentials');
+
+        /** @var array{name: string, email: string, password: string} $credentials */
+        $credentials = session('walkin_credentials');
+        $this->assertSame('Rina Walkin', $credentials['name']);
+        $this->assertSame($newEmail, $credentials['email']);
+        $this->assertSame(12, strlen($credentials['password']));
+        $this->assertTrue(Hash::check($credentials['password'], $createdCustomer->password));
+
+        // Password sementara tampil sekali pada halaman detail lalu hilang pada muatan berikutnya
+        $this->actingAs($kasir)->get(route('kasir.transaksi.show', $walkInOrder->id_transaksi))
+            ->assertOk()
+            ->assertSee($credentials['password'])
+            ->assertSee('Akun Pelanggan Baru Dibuat');
+
+        $this->actingAs($kasir)->get(route('kasir.transaksi.show', $walkInOrder->id_transaksi))
+            ->assertOk()
+            ->assertDontSee($credentials['password']);
+
         $this->assertSame('dikonfirmasi', $walkInOrder->status_pesanan);
         $this->assertSame('lunas', $walkInOrder->pembayaran->status_pembayaran);
         $this->assertSame($kasir->id, $walkInOrder->pembayaran->kasir_id);
@@ -245,6 +265,7 @@ class KasirOperasionalTest extends TestCase
 
         $existingOrder = Transaksi::with('pembayaran')->where('user_id', $existingCustomer->id)->firstOrFail();
         $secondResponse->assertRedirect(route('kasir.transaksi.show', $existingOrder->id_transaksi));
+        $secondResponse->assertSessionMissing('walkin_credentials');
         $this->assertSame('SIM-A-771122', $existingCustomer->fresh()->sim_number);
         $this->assertSame('menunggu_pembayaran', $existingOrder->status_pesanan);
         $this->assertSame('pending', $existingOrder->pembayaran->status_pembayaran);

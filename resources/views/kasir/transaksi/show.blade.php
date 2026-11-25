@@ -35,6 +35,29 @@
         </div>
     @endif
 
+    @if($credentials = session('walkin_credentials'))
+        <div class="notice warning" style="margin-bottom:24px; align-items:flex-start;" role="status">
+            <x-icon name="key" />
+            <div class="grow">
+                <strong style="display:block; margin-bottom:4px;">Akun Pelanggan Baru Dibuat (Hanya Ditampilkan Sekali)</strong>
+                <p class="small" style="color:inherit; margin-bottom:8px;">
+                    Catat dan sampaikan kredensial login berikut kepada <strong>{{ $credentials['name'] }}</strong>, lalu sarankan untuk segera mengganti kata sandi setelah masuk.
+                </p>
+                <div class="inline-actions" style="gap:12px;">
+                    <span>Email: <strong>{{ $credentials['email'] }}</strong></span>
+                    <span>Password sementara: <code id="walkin-temp-password" style="padding:2px 8px; border-radius:4px; background:rgba(15,23,42,.08); font-weight:700; letter-spacing:.03em;">{{ $credentials['password'] }}</code></span>
+                    <button type="button"
+                            class="btn btn-outline btn-small"
+                            id="btn-copy-walkin-credentials"
+                            data-email="{{ $credentials['email'] }}"
+                            data-password="{{ $credentials['password'] }}">
+                        Salin kredensial
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
     <div class="two-col">
         <div>
             <section class="panel">
@@ -210,4 +233,21 @@
             </div>
         </aside>
     </div>
+
+    @if(session('walkin_credentials'))
+        @push('scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const copyBtn = document.getElementById('btn-copy-walkin-credentials');
+                if (!copyBtn || !navigator.clipboard) return;
+                copyBtn.addEventListener('click', function () {
+                    const text = 'Email: ' + copyBtn.dataset.email + '\nPassword sementara: ' + copyBtn.dataset.password;
+                    navigator.clipboard.writeText(text).then(function () {
+                        copyBtn.textContent = 'Tersalin!';
+                    });
+                });
+            });
+        </script>
+        @endpush
+    @endif
 </x-layouts.staff>
