@@ -176,6 +176,12 @@
 
             <div class="od-stack" style="--od-gap:10px;">
                 @if($canHandover)
+                    @if(! $document || $document->status_verifikasi !== 'disetujui')
+                        <div class="notice warning" role="note">
+                            <x-icon name="shield" />
+                            <span>Dokumen KTP/SIM penyewa berstatus <strong>{{ $document?->status_label ?? 'Belum Upload' }}</strong>. Pastikan identitas fisik sudah diperiksa sebelum serah-terima unit.</span>
+                        </div>
+                    @endif
                     <form action="{{ route('kasir.transaksi.handover', $order->id_transaksi) }}" method="POST">
                         @csrf
                         <button type="submit" class="btn btn-primary wfull">

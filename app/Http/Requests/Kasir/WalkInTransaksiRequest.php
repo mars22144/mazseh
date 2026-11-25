@@ -40,6 +40,9 @@ class WalkInTransaksiRequest extends FormRequest
             'langsung_lunas' => ['nullable', 'boolean'],
             'catatan' => ['nullable', 'string', 'max:500'],
             'versi' => ['nullable', 'integer'],
+            'file_ktp' => ['nullable', 'image', 'max:3072'],
+            'file_sim' => ['nullable', 'image', 'max:3072'],
+            'verifikasi_dokumen' => ['nullable', 'boolean'],
         ];
     }
 
@@ -83,6 +86,11 @@ class WalkInTransaksiRequest extends FormRequest
             'langsung_lunas.boolean' => 'Status langsung lunas tidak valid.',
             'catatan.max' => 'Catatan maksimal 500 karakter.',
             'versi.integer' => 'Versi data armada harus berupa angka bulat.',
+            'file_ktp.image' => 'Foto KTP harus berupa file gambar (JPG, PNG, atau WebP).',
+            'file_ktp.max' => 'Ukuran foto KTP maksimal 3MB.',
+            'file_sim.image' => 'Foto SIM harus berupa file gambar (JPG, PNG, atau WebP).',
+            'file_sim.max' => 'Ukuran foto SIM maksimal 3MB.',
+            'verifikasi_dokumen.boolean' => 'Status verifikasi dokumen tidak valid.',
         ];
     }
 }

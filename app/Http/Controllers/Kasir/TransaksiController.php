@@ -4,21 +4,28 @@ namespace App\Http\Controllers\Kasir;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Kasir\WalkInTransaksiRequest;
+use App\Models\DocumentPelanggan;
 use App\Models\KatalogMobil;
 use App\Models\Transaksi;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use App\Services\TransaksiService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 class TransaksiController extends Controller
 {
-    public function __construct(public TransaksiService $transaksiService) {}
+    public function __construct(
+        public TransaksiService $transaksiService,
+        public ActivityLogService $activityLog
+    ) {}
 
     /**
      * Tampilkan daftar seluruh transaksi sewa dengan filter status dan pencarian.
@@ -63,7 +70,8 @@ class TransaksiController extends Controller
             ->orderBy('merk_model')
             ->get();
 
-        $customers = User::where('role', 'pelanggan')
+        $customers = User::with('dokumenPelanggan')
+            ->where('role', 'pelanggan')
             ->orderBy('name')
             ->get();
 
@@ -71,7 +79,7 @@ class TransaksiController extends Controller
     }
 
     /**
-     * Simpan transaksi walk-in baru beserta pembuatan pelanggan otomatis jika belum terdaftar.
+     * Simpan transaksi walk-in baru beserta pembuatan pelanggan otomatis dan dokumen KTP/SIM opsional.
      */
     public function store(WalkInTransaksiRequest $request): RedirectResponse
     {
@@ -83,40 +91,96 @@ class TransaksiController extends Controller
         /** @var array{name: string, email: string, password: string}|null $walkInCredentials */
         $walkInCredentials = null;
 
-        $transaksi = DB::transaction(function () use ($validated, $kasir, &$walkInCredentials): Transaksi {
-            if (! empty($validated['user_id'])) {
-                $customer = User::findOrFail((int) $validated['user_id']);
-            } else {
-                $temporaryPassword = Str::random(12);
+        /** @var list<string> $storedPaths */
+        $storedPaths = [];
+        $ktpPath = null;
+        $simPath = null;
 
-                $customer = User::firstOrCreate(
-                    ['email' => strtolower((string) $validated['customer_email'])],
-                    [
-                        'name' => $validated['customer_name'],
-                        'phone' => $validated['customer_phone'],
-                        'sim_number' => $validated['sim_number'],
-                        'password' => Hash::make($temporaryPassword),
-                    ]
-                );
+        try {
+            if ($request->hasFile('file_ktp')) {
+                $ktpPath = $request->file('file_ktp')->store('documents', 'local');
+                $storedPaths[] = $ktpPath;
+            }
 
-                if ($customer->wasRecentlyCreated) {
-                    $customer->forceFill(['role' => 'pelanggan'])->save();
-                    $walkInCredentials = [
-                        'name' => $customer->name,
-                        'email' => $customer->email,
-                        'password' => $temporaryPassword,
-                    ];
+            if ($request->hasFile('file_sim')) {
+                $simPath = $request->file('file_sim')->store('documents', 'local');
+                $storedPaths[] = $simPath;
+            }
+
+            $transaksi = DB::transaction(function () use ($validated, $kasir, $ktpPath, $simPath, &$walkInCredentials): Transaksi {
+                if (! empty($validated['user_id'])) {
+                    $customer = User::findOrFail((int) $validated['user_id']);
+                } else {
+                    $temporaryPassword = Str::random(12);
+
+                    $customer = User::firstOrCreate(
+                        ['email' => strtolower((string) $validated['customer_email'])],
+                        [
+                            'name' => $validated['customer_name'],
+                            'phone' => $validated['customer_phone'],
+                            'sim_number' => $validated['sim_number'],
+                            'password' => Hash::make($temporaryPassword),
+                        ]
+                    );
+
+                    if ($customer->wasRecentlyCreated) {
+                        $customer->forceFill(['role' => 'pelanggan'])->save();
+                        $walkInCredentials = [
+                            'name' => $customer->name,
+                            'email' => $customer->email,
+                            'password' => $temporaryPassword,
+                        ];
+                    }
                 }
+
+                if (empty($customer->sim_number) && ! empty($validated['sim_number'])) {
+                    $customer->update(['sim_number' => $validated['sim_number']]);
+                }
+
+                if ($ktpPath !== null || $simPath !== null) {
+                    $document = DocumentPelanggan::firstOrNew(['user_id' => $customer->id]);
+
+                    if ($ktpPath !== null) {
+                        $document->file_ktp = $ktpPath;
+                    }
+
+                    if ($simPath !== null) {
+                        $document->file_sim = $simPath;
+                    }
+
+                    $hasBothFiles = filled($document->file_ktp) && filled($document->file_sim);
+                    $autoVerify = ! empty($validated['verifikasi_dokumen']);
+
+                    if ($hasBothFiles && $autoVerify) {
+                        $document->status_verifikasi = 'disetujui';
+                        $document->catatan_verifikasi = 'Diverifikasi langsung oleh kasir saat transaksi walk-in.';
+                    } elseif ($hasBothFiles) {
+                        $document->status_verifikasi = 'menunggu_validasi';
+                    } elseif (! $document->exists) {
+                        $document->status_verifikasi = 'belum_upload';
+                    }
+
+                    $document->save();
+
+                    $this->activityLog->log(
+                        'document_pelanggan',
+                        'UPDATE',
+                        "Unggah dokumen pelanggan walk-in {$customer->name}: {$document->status_verifikasi}",
+                        $kasir->id
+                    );
+                }
+
+                $car = KatalogMobil::findOrFail((int) $validated['id_mobil']);
+
+                return $this->transaksiService->createBooking($customer, $car, $validated, $kasir->id);
+            });
+        } catch (Throwable $exception) {
+            foreach ($storedPaths as $path) {
+                Storage::disk('local')->delete($path);
             }
 
-            if (empty($customer->sim_number) && ! empty($validated['sim_number'])) {
-                $customer->update(['sim_number' => $validated['sim_number']]);
-            }
-
-            $car = KatalogMobil::findOrFail((int) $validated['id_mobil']);
-
-            return $this->transaksiService->createBooking($customer, $car, $validated, $kasir->id);
-        });
+            throw $exception;
+        }
 
         $redirect = redirect()
             ->route('kasir.transaksi.show', $transaksi->id_transaksi)

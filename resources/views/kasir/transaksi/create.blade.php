@@ -19,7 +19,7 @@
         </div>
     @endif
 
-    <form action="{{ route('kasir.transaksi.store') }}" method="POST" class="two-col">
+    <form action="{{ route('kasir.transaksi.store') }}" method="POST" enctype="multipart/form-data" class="two-col">
         @csrf
         <input type="hidden" id="versi" name="versi" value="{{ old('versi') }}">
 
@@ -38,8 +38,11 @@
                         <select id="user_id" name="user_id">
                             <option value="">-- Buat Pelanggan Baru --</option>
                             @foreach($customers as $customer)
+                                @php($doc = $customer->dokumenPelanggan)
                                 <option value="{{ $customer->id }}"
                                         data-sim="{{ $customer->sim_number ?? '' }}"
+                                        data-doc-status="{{ $doc?->status_verifikasi ?? 'belum_upload' }}"
+                                        data-doc-label="{{ $doc?->status_label ?? 'Belum Upload' }}"
                                         @selected((string) old('user_id') === (string) $customer->id)>
                                     {{ $customer->name }} ({{ $customer->email }})
                                 </option>
@@ -72,6 +75,39 @@
                         @error('sim_number')<p class="form-error">{{ $message }}</p>@enderror
                     </div>
                 </div>
+
+                <hr class="rule">
+
+                <div style="margin-bottom:16px;">
+                    <strong class="small" style="display:block;">Dokumen Identitas KTP &amp; SIM (Opsional)</strong>
+                    <p class="tiny muted" style="margin-top:4px;">Unggah foto KTP dan SIM A agar arsip dokumen pelanggan tercatat aman di sistem.</p>
+                </div>
+
+                <div id="customer-doc-notice" class="notice" style="margin-bottom:16px;" hidden>
+                    <x-icon name="shield" />
+                    <span id="customer-doc-notice-text"></span>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="file_ktp">Foto KTP Asli</label>
+                        <input id="file_ktp" name="file_ktp" type="file" accept="image/*">
+                        <span class="hint">JPG, PNG, atau WebP (maks 3MB).</span>
+                        @error('file_ktp')<p class="form-error">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div class="field">
+                        <label for="file_sim">Foto SIM A Asli</label>
+                        <input id="file_sim" name="file_sim" type="file" accept="image/*">
+                        <span class="hint">JPG, PNG, atau WebP (maks 3MB).</span>
+                        @error('file_sim')<p class="form-error">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+
+                <label class="check-label" style="margin-bottom:0;">
+                    <input type="checkbox" name="verifikasi_dokumen" value="1" @checked(old('verifikasi_dokumen', true))>
+                    <span>KTP &amp; SIM fisik sudah diperiksa di loket &mdash; langsung tandai <strong>Disetujui</strong> bila kedua foto lengkap</span>
+                </label>
             </section>
 
             <section class="panel">
@@ -188,12 +224,33 @@
             const versiInput = document.getElementById('versi');
             const customerSelect = document.getElementById('user_id');
             const simInput = document.getElementById('sim_number');
+            const docNotice = document.getElementById('customer-doc-notice');
+            const docNoticeText = document.getElementById('customer-doc-notice-text');
 
             function syncVersion() {
                 const selected = carSelect?.options[carSelect.selectedIndex];
                 if (versiInput && selected) {
                     versiInput.value = selected.dataset.versi ?? '';
                 }
+            }
+
+            function syncCustomerDocNotice() {
+                if (!customerSelect || !docNotice || !docNoticeText) return;
+                const selected = customerSelect.options[customerSelect.selectedIndex];
+
+                if (!customerSelect.value || !selected) {
+                    docNotice.hidden = true;
+                    return;
+                }
+
+                const status = selected.dataset.docStatus || 'belum_upload';
+                const label = selected.dataset.docLabel || 'Belum Upload';
+
+                docNotice.className = 'notice ' + (status === 'disetujui' ? 'success' : 'warning');
+                docNoticeText.textContent = status === 'disetujui'
+                    ? 'Dokumen KTP & SIM pelanggan ini sudah Disetujui. Kosongkan unggahan di bawah kecuali ingin memperbarui.'
+                    : 'Status dokumen KTP & SIM pelanggan ini: ' + label + '. Disarankan mengunggah foto KTP & SIM di loket.';
+                docNotice.hidden = false;
             }
 
             carSelect?.addEventListener('change', syncVersion);
@@ -204,7 +261,9 @@
                 if (simInput && selected?.dataset.sim && !simInput.value) {
                     simInput.value = selected.dataset.sim;
                 }
+                syncCustomerDocNotice();
             });
+            syncCustomerDocNotice();
         });
     </script>
     @endpush

@@ -10,13 +10,20 @@ use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class KasirOperasionalTest extends TestCase
 {
     use DatabaseTransactions;
+
+    /**
+     * Gambar PNG 1x1 valid agar lolos validasi `image` tanpa ekstensi GD.
+     */
+    private const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
     /**
      * Tamu diarahkan ke login dan pelanggan mendapat 403 di seluruh endpoint panel kasir.
@@ -269,6 +276,111 @@ class KasirOperasionalTest extends TestCase
         $this->assertSame('SIM-A-771122', $existingCustomer->fresh()->sim_number);
         $this->assertSame('menunggu_pembayaran', $existingOrder->status_pesanan);
         $this->assertSame('pending', $existingOrder->pembayaran->status_pembayaran);
+    }
+
+    /**
+     * Kasir dapat mengunggah foto KTP & SIM opsional saat walk-in secara privat, auto-approve, dan bersih saat rollback.
+     */
+    public function test_kasir_dapat_unggah_ktp_dan_sim_saat_walk_in_dengan_penyimpanan_privat(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $kasir = User::factory()->create(['role' => 'kasir']);
+        $car = $this->createCar(['harga_sewa' => 350000, 'versi' => 4]);
+        $pngBytes = base64_decode(self::TINY_PNG);
+
+        // 1. Jika transaksi gagal (versi usang), file yang sempat diunggah ikut dibersihkan
+        $staleEmail = 'stale-doc-'.Str::lower(Str::random(6)).'@mazseh.test';
+        $this->actingAs($kasir)->post(route('kasir.transaksi.store'), [
+            'customer_name' => 'Rollback Doc',
+            'customer_email' => $staleEmail,
+            'customer_phone' => '081234561111',
+            'sim_number' => 'SIM-ROLLBACK-1',
+            'id_mobil' => $car->id_mobil,
+            'start' => now()->addDays(2)->toDateString(),
+            'end' => now()->addDays(4)->toDateString(),
+            'waktu_ambil' => '09:00',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'metode_pembayaran' => 'Tunai di kasir',
+            'langsung_lunas' => 1,
+            'versi' => 1,
+            'file_ktp' => UploadedFile::fake()->createWithContent('ktp.png', $pngBytes),
+            'file_sim' => UploadedFile::fake()->createWithContent('sim.png', $pngBytes),
+            'verifikasi_dokumen' => 1,
+        ])->assertSessionHasErrors('mobil');
+
+        $this->assertSame([], Storage::disk('local')->allFiles());
+        $this->assertDatabaseMissing('users', ['email' => $staleEmail]);
+
+        // 2. Walk-in dengan KTP + SIM lengkap dan verifikasi_dokumen aktif -> langsung disetujui di disk privat
+        $approvedEmail = 'doc-ok-'.Str::lower(Str::random(6)).'@mazseh.test';
+        $this->actingAs($kasir)->post(route('kasir.transaksi.store'), [
+            'customer_name' => 'Bima Walkin Doc',
+            'customer_email' => $approvedEmail,
+            'customer_phone' => '081234562222',
+            'sim_number' => 'SIM-BIMA-01',
+            'id_mobil' => $car->id_mobil,
+            'start' => now()->addDays(2)->toDateString(),
+            'end' => now()->addDays(4)->toDateString(),
+            'waktu_ambil' => '09:00',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'metode_pembayaran' => 'Tunai di kasir',
+            'langsung_lunas' => 1,
+            'versi' => 4,
+            'file_ktp' => UploadedFile::fake()->createWithContent('ktp-bima.png', $pngBytes),
+            'file_sim' => UploadedFile::fake()->createWithContent('sim-bima.png', $pngBytes),
+            'verifikasi_dokumen' => 1,
+        ])->assertRedirect();
+
+        $approvedCustomer = User::with('dokumenPelanggan')->where('email', $approvedEmail)->firstOrFail();
+        $approvedDoc = $approvedCustomer->dokumenPelanggan;
+        $this->assertNotNull($approvedDoc);
+        $this->assertSame('disetujui', $approvedDoc->status_verifikasi);
+        Storage::disk('local')->assertExists($approvedDoc->file_ktp);
+        Storage::disk('local')->assertExists($approvedDoc->file_sim);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->actingAs($kasir)->get(route('files.document', [$approvedCustomer->id, 'ktp']))->assertOk();
+        $this->actingAs($kasir)->get(route('files.document', [$approvedCustomer->id, 'sim']))->assertOk();
+
+        $approvedOrder = Transaksi::where('user_id', $approvedCustomer->id)->firstOrFail();
+        $this->actingAs($kasir)->get(route('kasir.transaksi.show', $approvedOrder->id_transaksi))
+            ->assertOk()
+            ->assertSee('KTP/SIM: Disetujui')
+            ->assertDontSee('Pastikan identitas fisik sudah diperiksa');
+
+        // 3. Walk-in dengan KTP + SIM lengkap tanpa auto-approve -> menunggu_validasi & peringatan tampil saat handover
+        $pendingEmail = 'doc-wait-'.Str::lower(Str::random(6)).'@mazseh.test';
+        $this->actingAs($kasir)->post(route('kasir.transaksi.store'), [
+            'customer_name' => 'Sari Walkin Wait',
+            'customer_email' => $pendingEmail,
+            'customer_phone' => '081234563333',
+            'sim_number' => 'SIM-SARI-02',
+            'id_mobil' => $car->id_mobil,
+            'start' => now()->addDays(8)->toDateString(),
+            'end' => now()->addDays(10)->toDateString(),
+            'waktu_ambil' => '10:00',
+            'opsi_pengemudi' => 'Lepas kunci',
+            'metode_pengambilan' => 'Ambil di pool MAZSEH',
+            'titik_jemput' => 'Pool MAZSEH Klaten',
+            'metode_pembayaran' => 'Tunai di kasir',
+            'langsung_lunas' => 1,
+            'file_ktp' => UploadedFile::fake()->createWithContent('ktp-sari.png', $pngBytes),
+            'file_sim' => UploadedFile::fake()->createWithContent('sim-sari.png', $pngBytes),
+            'verifikasi_dokumen' => 0,
+        ])->assertRedirect();
+
+        $pendingCustomer = User::with('dokumenPelanggan')->where('email', $pendingEmail)->firstOrFail();
+        $this->assertSame('menunggu_validasi', $pendingCustomer->dokumenPelanggan->status_verifikasi);
+
+        $pendingOrder = Transaksi::where('user_id', $pendingCustomer->id)->firstOrFail();
+        $this->actingAs($kasir)->get(route('kasir.transaksi.show', $pendingOrder->id_transaksi))
+            ->assertOk()
+            ->assertSee('Pastikan identitas fisik sudah diperiksa');
     }
 
     /**
