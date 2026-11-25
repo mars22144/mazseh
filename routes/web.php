@@ -9,7 +9,11 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Kasir\DashboardController as KasirDashboardController;
+use App\Http\Controllers\Kasir\DokumenController as KasirDokumenController;
 use App\Http\Controllers\Kasir\PaymentController as KasirPaymentController;
+use App\Http\Controllers\Kasir\PembayaranController as KasirPembayaranController;
+use App\Http\Controllers\Kasir\RefundController as KasirRefundController;
+use App\Http\Controllers\Kasir\TransaksiController as KasirTransaksiController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
@@ -103,10 +107,38 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 });
 
 // Kasir Panel (kasir & admin)
-Route::middleware(['auth', 'role:kasir,admin'])->prefix('kasir')->name('kasir.')->group(function () {
-    Route::get('/', [KasirDashboardController::class, 'index'])->name('dashboard');
-    Route::get('/pembayaran', [KasirPaymentController::class, 'index'])->name('payments.index');
-    Route::get('/pembayaran/{id}', [KasirPaymentController::class, 'show'])->whereNumber('id')->name('payments.show');
-    Route::post('/pembayaran/{id}/terima', [KasirPaymentController::class, 'approve'])->whereNumber('id')->name('payments.approve');
-    Route::post('/pembayaran/{id}/tolak', [KasirPaymentController::class, 'reject'])->whereNumber('id')->name('payments.reject');
-});
+Route::middleware(['auth', 'role:kasir,admin'])
+    ->prefix('kasir')
+    ->name('kasir.')
+    ->group(function (): void {
+        // 1. Dashboard Operasional Kasir
+        Route::get('/', [KasirDashboardController::class, 'index'])->name('dashboard');
+
+        // 2. Verifikasi Pembayaran
+        Route::get('/pembayaran', [KasirPembayaranController::class, 'index'])->name('pembayaran.index');
+        Route::post('/pembayaran/{id}/verify', [KasirPembayaranController::class, 'verify'])->whereNumber('id')->name('pembayaran.verify');
+
+        // Rute pembayaran detail eksisting (kompatibilitas UI & tes panel kasir)
+        Route::get('/payments', [KasirPaymentController::class, 'index'])->name('payments.index');
+        Route::get('/pembayaran/{id}', [KasirPaymentController::class, 'show'])->whereNumber('id')->name('payments.show');
+        Route::post('/pembayaran/{id}/terima', [KasirPaymentController::class, 'approve'])->whereNumber('id')->name('payments.approve');
+        Route::post('/pembayaran/{id}/tolak', [KasirPaymentController::class, 'reject'])->whereNumber('id')->name('payments.reject');
+
+        // 3. Manajemen Transaksi, Walk-in, Serah-Terima, & Pengembalian
+        Route::get('/transaksi', [KasirTransaksiController::class, 'index'])->name('transaksi.index');
+        Route::get('/transaksi/create', [KasirTransaksiController::class, 'create'])->name('transaksi.create');
+        Route::post('/transaksi', [KasirTransaksiController::class, 'store'])->name('transaksi.store');
+        Route::get('/transaksi/{id}', [KasirTransaksiController::class, 'show'])->whereNumber('id')->name('transaksi.show');
+        Route::post('/transaksi/{id}/serah-terima', [KasirTransaksiController::class, 'handover'])->whereNumber('id')->name('transaksi.handover');
+        Route::post('/transaksi/{id}/pengembalian', [KasirTransaksiController::class, 'returnUnit'])->whereNumber('id')->name('transaksi.return');
+        Route::post('/transaksi/{id}/batal', [KasirTransaksiController::class, 'cancel'])->whereNumber('id')->name('transaksi.cancel');
+        Route::get('/transaksi/{id}/kuitansi', [KasirTransaksiController::class, 'receipt'])->whereNumber('id')->name('transaksi.receipt');
+
+        // 4. Proses Refund
+        Route::get('/refund', [KasirRefundController::class, 'index'])->name('refund.index');
+        Route::post('/refund/{id}/process', [KasirRefundController::class, 'process'])->whereNumber('id')->name('refund.process');
+
+        // 5. Verifikasi Dokumen KTP & SIM Pelanggan
+        Route::get('/dokumen', [KasirDokumenController::class, 'index'])->name('dokumen.index');
+        Route::post('/dokumen/{id}/verify', [KasirDokumenController::class, 'verify'])->whereNumber('id')->name('dokumen.verify');
+    });

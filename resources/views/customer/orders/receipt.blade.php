@@ -63,7 +63,7 @@
             </p>
 
             <div class="button-row" style="margin-top:32px;">
-                <a href="{{ route('orders.show', $order->id_transaksi) }}" class="btn btn-outline">
+                <a href="{{ Auth::user()?->canAccessKasirPanel() ? route('kasir.transaksi.show', $order->id_transaksi) : route('orders.show', $order->id_transaksi) }}" class="btn btn-outline">
                     <x-icon name="back" />
                     <span>Kembali ke Pesanan</span>
                 </a>
