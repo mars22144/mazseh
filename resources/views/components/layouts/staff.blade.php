@@ -4,11 +4,10 @@
     /** @var \App\Models\User $staff */
     $staff = Auth::user();
     $awaitingVerificationCount = \App\Models\Pembayaran::awaitingVerification()->count();
+    $pendingRefundCount = \App\Models\Pembayaran::where('status_refund', 'menunggu_proses')->count();
     $isAdminArea = request()->routeIs('admin.*') || (request()->routeIs('staff.*') && $staff->hasRole('admin'));
     $panelName = $isAdminArea ? 'Admin' : 'Kasir';
-    $pendingDocumentCount = $staff->hasRole('admin')
-        ? \App\Models\DocumentPelanggan::where('status_verifikasi', 'menunggu_validasi')->count()
-        : 0;
+    $pendingDocumentCount = \App\Models\DocumentPelanggan::where('status_verifikasi', 'menunggu_validasi')->count();
 @endphp
 
 <!doctype html>
@@ -59,11 +58,29 @@
                     <x-icon name="dashboard" />
                     <span>Ringkasan</span>
                 </a>
-                <a href="{{ route('kasir.payments.index') }}" class="sidebar-link {{ request()->routeIs('kasir.payments.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.payments.*')) aria-current="page" @endif>
+                <a href="{{ route('kasir.pembayaran.index') }}" class="sidebar-link {{ request()->routeIs('kasir.pembayaran.*', 'kasir.payments.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.pembayaran.*', 'kasir.payments.*')) aria-current="page" @endif>
                     <x-icon name="wallet" />
                     <span>Pembayaran</span>
                     @if($awaitingVerificationCount > 0)
                         <span class="nav-count" aria-label="{{ $awaitingVerificationCount }} menunggu verifikasi">{{ $awaitingVerificationCount }}</span>
+                    @endif
+                </a>
+                <a href="{{ route('kasir.transaksi.index') }}" class="sidebar-link {{ request()->routeIs('kasir.transaksi.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.transaksi.*')) aria-current="page" @endif>
+                    <x-icon name="car" />
+                    <span>Transaksi</span>
+                </a>
+                <a href="{{ route('kasir.refund.index') }}" class="sidebar-link {{ request()->routeIs('kasir.refund.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.refund.*')) aria-current="page" @endif>
+                    <x-icon name="receipt" />
+                    <span>Refund</span>
+                    @if($pendingRefundCount > 0)
+                        <span class="nav-count" aria-label="{{ $pendingRefundCount }} refund menunggu proses">{{ $pendingRefundCount }}</span>
+                    @endif
+                </a>
+                <a href="{{ route('kasir.dokumen.index') }}" class="sidebar-link {{ request()->routeIs('kasir.dokumen.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.dokumen.*')) aria-current="page" @endif>
+                    <x-icon name="shield" />
+                    <span>Dokumen</span>
+                    @if($pendingDocumentCount > 0)
+                        <span class="nav-count" aria-label="{{ $pendingDocumentCount }} dokumen menunggu validasi">{{ $pendingDocumentCount }}</span>
                     @endif
                 </a>
 

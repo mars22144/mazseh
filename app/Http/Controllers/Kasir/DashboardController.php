@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Kasir;
 
 use App\Http\Controllers\Controller;
+use App\Models\DocumentPelanggan;
 use App\Models\Pembayaran;
 use App\Models\Transaksi;
 use Carbon\CarbonImmutable;
@@ -12,11 +13,36 @@ use Illuminate\View\View;
 class DashboardController extends Controller
 {
     /**
-     * Tampilkan ringkasan kerja kasir: antrean verifikasi, kas masuk, dan jadwal serah-terima.
+     * Tampilkan ringkasan operasional kasir: statistik harian, antrean verifikasi, dan sewa aktif.
      */
     public function index(): View
     {
         $today = CarbonImmutable::today();
+
+        $stats = [
+            'pembayaran_pending' => Pembayaran::where('status_pembayaran', 'pending')->count(),
+            'dokumen_pending' => DocumentPelanggan::where('status_verifikasi', 'menunggu_validasi')->count(),
+            'refund_pending' => Pembayaran::where('status_refund', 'menunggu_proses')->count(),
+            'sedang_disewa' => Transaksi::where('status_pesanan', 'sedang_disewa')->count(),
+            'jadwal_ambil_hari_ini' => Transaksi::whereDate('tanggal_mulai', today())
+                ->where('status_pesanan', 'dikonfirmasi')
+                ->count(),
+            'jadwal_kembali_hari_ini' => Transaksi::whereDate('tanggal_selesai', today())
+                ->where('status_pesanan', 'sedang_disewa')
+                ->count(),
+        ];
+
+        $pendingPayments = Pembayaran::with(['transaksi.user', 'transaksi.mobil'])
+            ->where('status_pembayaran', 'pending')
+            ->orderByDesc('id_pembayaran')
+            ->limit(5)
+            ->get();
+
+        $activeRentals = Transaksi::with(['user', 'mobil', 'pembayaran'])
+            ->whereIn('status_pesanan', ['dikonfirmasi', 'sedang_disewa'])
+            ->orderBy('tanggal_mulai')
+            ->limit(5)
+            ->get();
 
         $awaitingCount = Pembayaran::awaitingVerification()->count();
 
@@ -43,6 +69,9 @@ class DashboardController extends Controller
             ->get();
 
         return view('kasir.dashboard', [
+            'stats' => $stats,
+            'pendingPayments' => $pendingPayments,
+            'activeRentals' => $activeRentals,
             'awaitingCount' => $awaitingCount,
             'unpaidCount' => $unpaidCount,
             'receivedTodayTotal' => (float) $verifiedToday->sum('jumlah_bayar'),

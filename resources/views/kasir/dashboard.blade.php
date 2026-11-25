@@ -14,12 +14,18 @@
     <div class="page-title">
         <div>
             <h1>Halo, {{ Str::words(Auth::user()->name, 1, '') }}</h1>
-            <p>Verifikasi pembayaran masuk dan siapkan serah-terima unit hari ini.</p>
+            <p>Verifikasi pembayaran masuk, kelola transaksi walk-in, refund, dan dokumen pelanggan hari ini.</p>
         </div>
-        <a href="{{ route('kasir.payments.index') }}" class="btn btn-primary">
-            <x-icon name="wallet" />
-            <span>Buka antrean verifikasi</span>
-        </a>
+        <div class="inline-actions">
+            <a href="{{ route('kasir.transaksi.create') }}" class="btn btn-outline">
+                <x-icon name="plus" />
+                <span>Walk-in</span>
+            </a>
+            <a href="{{ route('kasir.pembayaran.index') }}" class="btn btn-primary">
+                <x-icon name="wallet" />
+                <span>Buka antrean verifikasi</span>
+            </a>
+        </div>
     </div>
 
     <section class="stats-grid" aria-label="Statistik kasir">
@@ -53,9 +59,28 @@
                 <x-icon name="key" />
             </div>
             <span class="stat-value">{{ $handoversTodayCount }}</span>
-            <span class="stat-note">Unit lunas siap diserahkan</span>
+            <span class="stat-note">{{ $stats['sedang_disewa'] ?? 0 }} sedang disewa &bull; {{ $stats['jadwal_kembali_hari_ini'] ?? 0 }} kembali hari ini</span>
         </div>
     </section>
+
+    <div class="quick-actions" style="grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); margin-bottom:28px;">
+        <a href="{{ route('kasir.pembayaran.index', ['status' => 'pending']) }}" class="quick-action">
+            <x-icon name="wallet" />
+            <span>Pembayaran Pending ({{ $stats['pembayaran_pending'] ?? 0 }})</span>
+        </a>
+        <a href="{{ route('kasir.transaksi.index', ['status' => 'sedang_disewa']) }}" class="quick-action">
+            <x-icon name="car" />
+            <span>Sedang Disewa ({{ $stats['sedang_disewa'] ?? 0 }})</span>
+        </a>
+        <a href="{{ route('kasir.refund.index', ['status_refund' => 'menunggu_proses']) }}" class="quick-action">
+            <x-icon name="receipt" />
+            <span>Refund Pending ({{ $stats['refund_pending'] ?? 0 }})</span>
+        </a>
+        <a href="{{ route('kasir.dokumen.index', ['status' => 'menunggu_validasi']) }}" class="quick-action">
+            <x-icon name="shield" />
+            <span>Dokumen Pending ({{ $stats['dokumen_pending'] ?? 0 }})</span>
+        </a>
+    </div>
 
     <div class="dashboard-grid">
         <section class="panel">
