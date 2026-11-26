@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DocumentPelanggan;
 use App\Models\Pembayaran;
 use App\Models\User;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
@@ -54,9 +55,12 @@ class SecureFileController extends Controller
             ? ['public', substr($path, strlen('/storage/'))]
             : ['local', $path];
 
-        abort_unless(Storage::disk($disk)->exists($relativePath), 404);
+        /** @var FilesystemAdapter $storage */
+        $storage = Storage::disk($disk);
 
-        return Storage::disk($disk)->response($relativePath, null, [
+        abort_unless($storage->exists($relativePath), 404);
+
+        return $storage->response($relativePath, null, [
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
