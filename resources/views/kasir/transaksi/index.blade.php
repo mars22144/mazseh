@@ -14,7 +14,7 @@
 
     <div class="page-title">
         <div>
-            <h1>Manajemen Transaksi</h1>
+            <h1>Manajemen Booking</h1>
             <p>Kelola pesanan online dan walk-in, serah-terima unit, pengembalian, serta cetak kuitansi.</p>
         </div>
         <a href="{{ route('kasir.transaksi.create') }}" class="btn btn-primary">

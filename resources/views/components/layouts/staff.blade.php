@@ -67,7 +67,7 @@
                 </a>
                 <a href="{{ route('kasir.transaksi.index') }}" class="sidebar-link {{ request()->routeIs('kasir.transaksi.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.transaksi.*')) aria-current="page" @endif>
                     <x-icon name="car" />
-                    <span>Transaksi</span>
+                    <span>Booking</span>
                 </a>
                 <a href="{{ route('kasir.refund.index') }}" class="sidebar-link {{ request()->routeIs('kasir.refund.*') ? 'active' : '' }}" @if(request()->routeIs('kasir.refund.*')) aria-current="page" @endif>
                     <x-icon name="receipt" />
