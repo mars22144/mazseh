@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DocumentPelanggan;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +16,7 @@ class ProfileController extends Controller
      */
     public function edit(): View
     {
+        /** @var User $user */
         $user = Auth::user();
         $document = $user->dokumenPelanggan;
 
@@ -26,11 +28,12 @@ class ProfileController extends Controller
      */
     public function update(Request $request): RedirectResponse
     {
+        /** @var User $user */
         $user = Auth::user();
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:80'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$user->id],
             'phone' => ['required', 'string', 'max:30'],
             'city' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string', 'max:500'],
