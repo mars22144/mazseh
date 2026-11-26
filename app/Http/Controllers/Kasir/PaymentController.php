@@ -103,7 +103,7 @@ class PaymentController extends Controller
             $payment = Pembayaran::with('transaksi')->lockForUpdate()->findOrFail($id);
             $order = $payment->transaksi;
 
-            if (! $order || $order->status_pesanan !== 'menunggu_pembayaran' || $payment->isPaid()) {
+            if (! $order || $order->status_pesanan !== 'menunggu_pembayaran' || $payment->isPaid() || $payment->isRejected()) {
                 return 'Pembayaran ini sudah diproses atau pesanannya tidak lagi menunggu pembayaran.';
             }
 

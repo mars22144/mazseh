@@ -4,7 +4,7 @@
         $customer = $order->user;
         $document = $customer->dokumenPelanggan;
         $isOrderOpen = $order->status_pesanan === 'menunggu_pembayaran';
-        $canApprove = $isOrderOpen && ! $payment->isPaid();
+        $canApprove = $isOrderOpen && ! $payment->isPaid() && ! $payment->isRejected();
         $canReject = $isOrderOpen && $payment->isAwaitingVerification();
         $driverTotal = $order->opsi_pengemudi === 'Dengan sopir' ? 200000 * $order->duration_days : 0;
         $rentalTotal = max(0, (float) $order->total_harga - $driverTotal);
@@ -199,6 +199,11 @@
                 <div class="notice success">
                     <x-icon name="check" />
                     <span>Pembayaran lunas. Unit siap diserahterimakan sesuai jadwal.</span>
+                </div>
+            @elseif($payment->isRejected())
+                <div class="notice error">
+                    <x-icon name="info" />
+                    <span>Pembayaran telah ditolak. Menunggu pelanggan mengirim ulang bukti pembayaran yang sesuai.</span>
                 </div>
             @else
                 <div class="notice warning">

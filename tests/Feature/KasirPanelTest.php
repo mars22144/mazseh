@@ -141,6 +141,16 @@ class KasirPanelTest extends TestCase
         $this->assertSame('gagal', $payment->status_pembayaran);
         $this->assertSame('menunggu_pembayaran', $order->fresh()->status_pesanan);
 
+        $this->actingAs($kasir)->get(route('kasir.payments.show', $payment->id_pembayaran))
+            ->assertOk()
+            ->assertDontSee('Terima pembayaran')
+            ->assertSee('Pembayaran telah ditolak.');
+
+        $this->actingAs($kasir)->post(route('kasir.payments.approve', $payment->id_pembayaran), [
+            'metode_pembayaran' => 'Transfer bank',
+        ])->assertSessionHas('error');
+        $this->assertSame('gagal', $payment->fresh()->status_pembayaran);
+
         $this->actingAs($customer)->get(route('orders.payment', $order->id_transaksi))
             ->assertOk()
             ->assertSee('Nominal transfer tidak sesuai tagihan.');
